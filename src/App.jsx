@@ -1097,6 +1097,35 @@ const GLOSSARY_DATA = {
       { icon: "🏢", label: "Department health table",   desc: "'At risk' column counts KRs that are At Risk or Off Track. 'Avg progress' uses the same colour coding as status badges." },
       { icon: "🟡", label: "Gold bar (timeline)",       desc: "The gold fill in the header progress bar shows how much of the quarter has elapsed (71.6%)." },
     ],
+    progress: {
+      title: "How progress is calculated on this page",
+      items: [
+        { label: "Individual KR progress %",     desc: "Set manually when editing a KR. It represents how far along the KR is from its start value to its target — e.g. a KR going from 0 to 100 that is now at 60 = 60%." },
+        { label: "Department avg progress (bar chart)", desc: "Simple average of all individual KR progress % values within that department. E.g. 3 KRs at 20%, 60%, 80% → dept avg = 53%." },
+        { label: "Department overall status (health table)", desc: "Driven by the worst-performing KR in the department: if any KR is Off Track the whole dept shows Off Track, then At Risk, then On Track. Completed only if every single KR is done." },
+        { label: "Overall avg progress (banner)", desc: "Average of all KR progress % values across every department and every KR — a single company-wide number." },
+        { label: "Company KR progress (right panel)", desc: "Average progress % of all department KRs that are linked to that company KR. Status uses the same worst-case rule." },
+      ],
+    },
+  },
+  goals: {
+    title: "Goals — how this view works",
+    items: [
+      { icon: "🏢", label: "Company objectives tab",    desc: "Lists every unique company-level KR that department KRs are linked to. Adding a new objective creates it as an empty container ready to receive KRs." },
+      { icon: "🏬", label: "Department objectives tab", desc: "Shows all objectives and KRs for the selected department. Switch departments using the buttons at the top." },
+      { icon: "↗",  label: "Blue department tag",       desc: "Shows which department a KR belongs to. Only visible on company objective KR cards." },
+      { icon: "✕",  label: "Delete button",             desc: "Removes a KR permanently from all views. A confirmation prompt appears before deletion." },
+      { icon: "- -", label: "Dashed + Add KR button",  desc: "Click to open a form and add a new key result directly under that objective." },
+    ],
+    progress: {
+      title: "How progress is calculated on this page",
+      items: [
+        { label: "Objective avg % (progress bar)",  desc: "Average of all KR progress % values linked to that objective. If an objective has no KRs yet, the bar shows 0%." },
+        { label: "Objective overall status (badge)", desc: "Same worst-case rule: Off Track overrides everything, then At Risk, then On Track. Completed only when every KR underneath it is done." },
+        { label: "Individual KR progress %",        desc: "Shown as a number on each KR card. Set via the Edit form in the All KRs view, or via a check-in update." },
+        { label: "New KRs start at 0%",             desc: "When you add a KR through Goals, it starts with Not Started status and 0% progress. Update it in All KRs or via a check-in." },
+      ],
+    },
   },
   alignment: {
     title: "Alignment — how to read this view",
@@ -1106,6 +1135,15 @@ const GLOSSARY_DATA = {
       { icon: "🔢", label: "KRs · Depts counter",       desc: "Shows how many department KRs are linked to that company objective, and across how many departments." },
       { icon: "▶",  label: "Expand arrow",              desc: "Click any company KR row to expand and see every department and individual KR supporting it." },
     ],
+    progress: {
+      title: "How progress is calculated on this page",
+      items: [
+        { label: "Company KR progress bar (top level)", desc: "Average of all department KR progress % values linked to that company KR, across all departments. If 5 KRs each have 40%, 60%, 80%, 20%, 100% → avg = 60%." },
+        { label: "Company KR status badge",             desc: "Worst-case rule across all linked KRs. A single Off Track KR makes the whole company KR show Off Track." },
+        { label: "Department block progress bar",       desc: "Average progress % of the KRs within that department that are linked to this company KR. Each department gets its own mini-average." },
+        { label: "Department block status badge",       desc: "Same worst-case rule applied only within that department's subset of KRs for this objective." },
+      ],
+    },
   },
   checkins: {
     title: "Check-ins — how it works",
@@ -1117,6 +1155,15 @@ const GLOSSARY_DATA = {
       { icon: "⬆️", label: "Green trend arrow",        desc: "Week-on-week change is positive — progress increased since last check-in." },
       { icon: "⬇️", label: "Orange trend arrow",       desc: "Week-on-week change is negative — progress decreased or a value worsened since last check-in." },
     ],
+    progress: {
+      title: "How progress is calculated on this page",
+      items: [
+        { label: "Progress bar on each KR card",  desc: "The same % as set in the Edit form or last check-in. It is not recalculated here — it reflects whatever was last saved." },
+        { label: "Submitting a check-in",         desc: "When you submit a check-in, the KR's status and weekly update are updated automatically. The progress % is NOT changed — you must edit the KR directly to update the number." },
+        { label: "WoW (week-on-week) field",      desc: "A free-text field — you type it yourself (e.g. +5%). It is informational only and does not affect the progress % calculation." },
+        { label: "Check-in history",              desc: "Each submission is stored with its date and status. The history shows the journey of a KR over time, but does not recalculate progress." },
+      ],
+    },
   },
   list: {
     title: "All KRs — what the numbers mean",
@@ -1127,11 +1174,21 @@ const GLOSSARY_DATA = {
       { icon: "✏️", label: "Edit ↗ button",            desc: "Opens the edit form to update the current value, progress %, status, WoW change, and weekly notes." },
       { icon: "🔵", label: "Blue border on expand",    desc: "The selected KR is highlighted with a blue border so you always know which one is open." },
     ],
+    progress: {
+      title: "How progress is calculated on this page",
+      items: [
+        { label: "Progress % (bar + number)",        desc: "Manually entered when you click Edit ↗ on any KR. Use the slider to set 0–100%. This is the single source of truth for that KR's progress across every view." },
+        { label: "Progress is NOT auto-calculated",  desc: "The tool does not compute progress from start/target/current values automatically. You set the % yourself based on your own measurement. This keeps it flexible for both numeric and milestone-based KRs." },
+        { label: "Current value field",              desc: "A display field only — e.g. '7.3%' or '€661'. It shows the latest measurement but does not drive the progress bar. Update both the current value and the % when editing." },
+        { label: "Department & company roll-ups",    desc: "All higher-level progress bars (department avg, company KR avg) are calculated from the individual KR progress % values you set here. Keeping KR % up to date = accurate dashboards everywhere." },
+      ],
+    },
   },
 };
 
 function Glossary({ currentView }) {
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState("legend");
   const shared = GLOSSARY_DATA.shared;
   const page = GLOSSARY_DATA[currentView];
 
@@ -1142,66 +1199,145 @@ function Glossary({ currentView }) {
         style={{ display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: FONT, width: "100%" }}
       >
         <span style={{ fontSize: 11, fontWeight: 700, color: A.gray500, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-          📖 Colour & legend glossary
+          📖 Legend & progress guide
         </span>
         <div style={{ flex: 1, height: 1, background: A.gray300 }} />
         <span style={{ fontSize: 11, color: A.gray400, fontFamily: FONT }}>{open ? "Hide ▲" : "Show ▼"}</span>
       </button>
 
       {open && (
-        <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-
-          {/* Status colour coding — always shown */}
-          <div style={{ background: A.white, border: `1px solid ${A.gray300}`, borderRadius: 12, padding: "18px 20px" }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: A.black, fontFamily: FONT, marginBottom: 14 }}>{shared.title}</div>
-            {shared.items.map(item => (
-              <div key={item.label} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", borderRadius: 20, fontSize: 10, fontWeight: 700, background: item.bg, color: item.color, fontFamily: FONT, whiteSpace: "nowrap", flexShrink: 0, marginTop: 1 }}>
-                  <span style={{ width: 5, height: 5, borderRadius: "50%", background: item.dot }} />
-                  {item.label}
-                </span>
-                <span style={{ fontSize: 12, color: A.gray700, fontFamily: FONT, lineHeight: 1.5 }}>{item.desc}</span>
-              </div>
+        <div style={{ marginTop: 16 }}>
+          {/* Inner tab switcher */}
+          <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+            {[["legend", "🎨 Colour legend"], ["progress", "📐 How progress works"]].map(([id, label]) => (
+              <button key={id} onClick={() => setTab(id)} style={{ padding: "6px 16px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: FONT, background: tab === id ? A.black : A.white, color: tab === id ? A.white : A.gray700, border: tab === id ? "none" : `1px solid ${A.gray300}` }}>{label}</button>
             ))}
           </div>
 
-          {/* Page-specific legend */}
-          {page && (
-            <div style={{ background: A.white, border: `1px solid ${A.gray300}`, borderRadius: 12, padding: "18px 20px" }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: A.black, fontFamily: FONT, marginBottom: 14 }}>{page.title}</div>
-              {page.items.map(item => (
-                <div key={item.label} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
-                  <span style={{ fontSize: 16, flexShrink: 0, width: 24, textAlign: "center", lineHeight: "20px" }}>{item.icon}</span>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: A.black, fontFamily: FONT, marginBottom: 2 }}>{item.label}</div>
-                    <div style={{ fontSize: 12, color: A.gray500, fontFamily: FONT, lineHeight: 1.5 }}>{item.desc}</div>
+          {/* LEGEND TAB */}
+          {tab === "legend" && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              {/* Status colours */}
+              <div style={{ background: A.white, border: `1px solid ${A.gray300}`, borderRadius: 12, padding: "18px 20px" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: A.black, fontFamily: FONT, marginBottom: 14 }}>{shared.title}</div>
+                {shared.items.map(item => (
+                  <div key={item.label} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", borderRadius: 20, fontSize: 10, fontWeight: 700, background: item.bg, color: item.color, fontFamily: FONT, whiteSpace: "nowrap", flexShrink: 0, marginTop: 1 }}>
+                      <span style={{ width: 5, height: 5, borderRadius: "50%", background: item.dot }} />
+                      {item.label}
+                    </span>
+                    <span style={{ fontSize: 12, color: A.gray700, fontFamily: FONT, lineHeight: 1.5 }}>{item.desc}</span>
                   </div>
+                ))}
+              </div>
+
+              {/* Page-specific legend */}
+              {page && (
+                <div style={{ background: A.white, border: `1px solid ${A.gray300}`, borderRadius: 12, padding: "18px 20px" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: A.black, fontFamily: FONT, marginBottom: 14 }}>{page.title}</div>
+                  {page.items.map(item => (
+                    <div key={item.label} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+                      <span style={{ fontSize: 15, flexShrink: 0, width: 24, textAlign: "center", lineHeight: "20px" }}>{item.icon}</span>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: A.black, fontFamily: FONT, marginBottom: 2 }}>{item.label}</div>
+                        <div style={{ fontSize: 12, color: A.gray500, fontFamily: FONT, lineHeight: 1.5 }}>{item.desc}</div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
+
+              {/* Progress bar key */}
+              <div style={{ gridColumn: "1 / -1", background: A.white, border: `1px solid ${A.gray300}`, borderRadius: 12, padding: "18px 20px" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: A.black, fontFamily: FONT, marginBottom: 14 }}>Progress bars — colour reference</div>
+                <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center" }}>
+                  {[
+                    { color: A.sageGreen,      label: "On Track" },
+                    { color: A.goldDeep,       label: "At Risk" },
+                    { color: A.copper,         label: "Off Track" },
+                    { color: A.invernessGreen, label: "Completed" },
+                    { color: A.gray300,        label: "Not Started" },
+                  ].map(b => (
+                    <div key={b.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ width: 52, height: 6, borderRadius: 3, background: A.gray200, overflow: "hidden", flexShrink: 0 }}>
+                        <div style={{ width: b.color === A.gray300 ? "0%" : "65%", height: "100%", background: b.color, borderRadius: 3 }} />
+                      </div>
+                      <span style={{ fontSize: 11, color: A.gray700, fontFamily: FONT }}>{b.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Progress bar key — full width */}
-          <div style={{ gridColumn: "1 / -1", background: A.white, border: `1px solid ${A.gray300}`, borderRadius: 12, padding: "18px 20px" }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: A.black, fontFamily: FONT, marginBottom: 14 }}>Progress bars — colour reference</div>
-            <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center" }}>
-              {[
-                { color: A.sageGreen,      label: "On Track — progressing as expected" },
-                { color: A.goldDeep,       label: "At Risk — falling behind" },
-                { color: A.copper,         label: "Off Track — significant gap to target" },
-                { color: A.invernessGreen, label: "Completed — target reached" },
-                { color: A.gray300,        label: "Empty bar — no progress recorded" },
-              ].map(b => (
-                <div key={b.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 48, height: 6, borderRadius: 3, background: A.gray200, overflow: "hidden", flexShrink: 0 }}>
-                    <div style={{ width: b.color === A.gray300 ? "0%" : "65%", height: "100%", background: b.color, borderRadius: 3 }} />
-                  </div>
-                  <span style={{ fontSize: 11, color: A.gray700, fontFamily: FONT }}>{b.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* PROGRESS TAB */}
+          {tab === "progress" && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
 
+              {/* How a single KR % works — always shown */}
+              <div style={{ background: A.white, border: `1px solid ${A.gray300}`, borderRadius: 12, padding: "18px 20px" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: A.black, fontFamily: FONT, marginBottom: 6 }}>How a single KR progress % works</div>
+                <div style={{ fontSize: 11, color: A.gray500, fontFamily: FONT, marginBottom: 14, lineHeight: 1.5 }}>Applies to every KR in every view</div>
+                {[
+                  { step: "1", label: "You set it manually",         desc: "In the Edit form, use the slider to set 0–100%. The tool does not auto-calculate from start/target values." },
+                  { step: "2", label: "Current value is separate",   desc: "The 'now X' value (e.g. €661) is a display field for your measurement. The progress % is what drives all charts." },
+                  { step: "3", label: "WoW is informational only",   desc: "The week-on-week field (e.g. +5%) is text you enter yourself. It does not change the progress %." },
+                  { step: "4", label: "Check-ins update status/notes", desc: "Submitting a check-in changes the KR's status and weekly update text, but not the progress %. Edit the KR to update %." },
+                ].map(s => (
+                  <div key={s.step} style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                    <span style={{ width: 20, height: 20, borderRadius: "50%", background: A.blue, color: A.white, fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1, fontFamily: FONT }}>{s.step}</span>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: A.black, fontFamily: FONT, marginBottom: 2 }}>{s.label}</div>
+                      <div style={{ fontSize: 12, color: A.gray500, fontFamily: FONT, lineHeight: 1.5 }}>{s.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Page-specific progress explanation */}
+              {page?.progress && (
+                <div style={{ background: A.white, border: `1px solid ${A.gray300}`, borderRadius: 12, padding: "18px 20px" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: A.black, fontFamily: FONT, marginBottom: 6 }}>{page.progress.title}</div>
+                  <div style={{ fontSize: 11, color: A.gray500, fontFamily: FONT, marginBottom: 14, lineHeight: 1.5 }}>Specific to the current page</div>
+                  {page.progress.items.map(item => (
+                    <div key={item.label} style={{ display: "flex", gap: 10, marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${A.gray200}` }}>
+                      <div style={{ width: 3, borderRadius: 2, background: A.blue, flexShrink: 0, minHeight: 36 }} />
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: A.black, fontFamily: FONT, marginBottom: 3 }}>{item.label}</div>
+                        <div style={{ fontSize: 12, color: A.gray500, fontFamily: FONT, lineHeight: 1.55 }}>{item.desc}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Roll-up formula visual */}
+              <div style={{ gridColumn: "1 / -1", background: A.white, border: `1px solid ${A.gray300}`, borderRadius: 12, padding: "18px 20px" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: A.black, fontFamily: FONT, marginBottom: 14 }}>How individual KR % rolls up to department and company level</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 0, flexWrap: "wrap" }}>
+                  {[
+                    { label: "KR 1\n40%", color: A.blueLight, text: A.blue },
+                    { label: "KR 2\n80%", color: A.blueLight, text: A.blue },
+                    { label: "KR 3\n60%", color: A.blueLight, text: A.blue },
+                    { op: "→ avg →" },
+                    { label: "Dept avg\n60%", color: A.sageLight, text: "#006B2E" },
+                    { op: "→ avg →" },
+                    { label: "Company KR\navg 60%", color: "#EBF1FE", text: A.blueDark },
+                  ].map((item, i) => item.op ? (
+                    <span key={i} style={{ fontSize: 11, color: A.gray400, fontFamily: FONT, padding: "0 10px", fontWeight: 700 }}>{item.op}</span>
+                  ) : (
+                    <div key={i} style={{ background: item.color, borderRadius: 8, padding: "10px 14px", textAlign: "center", minWidth: 64 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: item.text, fontFamily: FONT, whiteSpace: "pre-line", lineHeight: 1.5 }}>{item.label}</div>
+                    </div>
+                  ))}
+                  <div style={{ marginLeft: 24, fontSize: 12, color: A.gray500, fontFamily: FONT, lineHeight: 1.6, maxWidth: 320 }}>
+                    Progress always rolls up as a simple average. The department or company KR progress = sum of all linked KR percentages ÷ number of KRs.
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          )}
         </div>
       )}
     </div>
