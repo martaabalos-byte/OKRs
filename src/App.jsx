@@ -1,473 +1,504 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { INITIAL_OKR_DATA, DEPARTMENTS, COMPANY_KRS, STATUSES } from "./data";
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-const STATUS_CONFIG = {
-  "On Track":   { bg: "#e8f5e9", color: "#2e7d32", dot: "#4caf50" },
-  "At Risk":    { bg: "#fff8e1", color: "#e65100", dot: "#ff9800" },
-  "Off Track":  { bg: "#fce4ec", color: "#b71c1c", dot: "#f44336" },
-  "Completed":  { bg: "#e0f2f1", color: "#004d40", dot: "#009688" },
-  "Not Started":{ bg: "#f5f5f5", color: "#616161", dot: "#9e9e9e" },
+const A = {
+  green:      "#1A6B3C",
+  greenLight: "#E8F5EE",
+  greenMid:   "#2D8A55",
+  greenDark:  "#0F4526",
+  black:      "#0D0D0D",
+  gray100:    "#F7F7F5",
+  gray200:    "#EFEFEC",
+  gray300:    "#E0DED9",
+  gray400:    "#C4C2BC",
+  gray500:    "#9A9892",
+  gray700:    "#4A4845",
+  white:      "#FFFFFF",
+  amber:      "#F59E0B",
+  amberLight: "#FFFBEB",
+  red:        "#DC2626",
+  redLight:   "#FEF2F2",
+  teal:       "#0D9488",
+  tealLight:  "#F0FDFA",
 };
 
-function Badge({ status }) {
-  const cfg = STATUS_CONFIG[status] || STATUS_CONFIG["Not Started"];
+const STATUS_CFG = {
+  "On Track":    { bg: A.greenLight, color: A.green,   dot: A.greenMid },
+  "At Risk":     { bg: A.amberLight, color: "#92400E", dot: A.amber },
+  "Off Track":   { bg: A.redLight,   color: A.red,     dot: A.red },
+  "Completed":   { bg: A.tealLight,  color: A.teal,    dot: A.teal },
+  "Not Started": { bg: A.gray200,    color: A.gray700, dot: A.gray400 },
+};
+
+function Badge({ status, small }) {
+  const cfg = STATUS_CFG[status] || STATUS_CFG["Not Started"];
   return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 5,
-      padding: "3px 10px", borderRadius: 20,
-      fontSize: 11, fontWeight: 600, letterSpacing: "0.02em",
-      background: cfg.bg, color: cfg.color,
-      fontFamily: "'DM Mono', monospace",
-    }}>
-      <span style={{ width: 6, height: 6, borderRadius: "50%", background: cfg.dot, display: "inline-block" }} />
+    <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding: small?"2px 8px":"4px 10px", borderRadius:20, fontSize: small?10:11, fontWeight:600, background:cfg.bg, color:cfg.color, fontFamily:"'DM Mono',monospace", whiteSpace:"nowrap" }}>
+      <span style={{ width:5, height:5, borderRadius:"50%", background:cfg.dot }} />
       {status}
     </span>
   );
 }
 
-function ProgressBar({ pct, status }) {
-  const cfg = STATUS_CONFIG[status] || STATUS_CONFIG["On Track"];
+function ProgressBar({ pct, status, height=5 }) {
+  const cfg = STATUS_CFG[status] || STATUS_CFG["On Track"];
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <div style={{ flex: 1, height: 4, background: "#f0f0f0", borderRadius: 2, overflow: "hidden" }}>
-        <div style={{
-          width: `${Math.min(pct, 100)}%`, height: "100%",
-          background: cfg.dot, borderRadius: 2,
-          transition: "width 0.4s ease",
-        }} />
+    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+      <div style={{ flex:1, height, background:A.gray200, borderRadius:height }}>
+        <div style={{ width:`${Math.min(pct,100)}%`, height:"100%", background:cfg.dot, borderRadius:height, transition:"width 0.4s" }} />
       </div>
-      <span style={{ fontSize: 11, color: "#888", fontFamily: "'DM Mono', monospace", minWidth: 32 }}>{pct}%</span>
+      <span style={{ fontSize:11, color:A.gray500, fontFamily:"'DM Mono',monospace", minWidth:28, textAlign:"right" }}>{pct}%</span>
     </div>
   );
 }
 
-// ─── AI Chat Panel ───────────────────────────────────────────────────────────
+function DonutChart({ segments, size=150 }) {
+  const r=50, cx=size/2, cy=size/2, circ=2*Math.PI*r;
+  let offset=0;
+  const total = segments.reduce((a,s)=>a+s.value,0)||1;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke={A.gray200} strokeWidth={18}/>
+      {segments.map((s,i)=>{
+        const dash=(s.value/total)*circ, gap=circ-dash;
+        const el=(<circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={s.color} strokeWidth={18} strokeDasharray={`${dash} ${gap}`} strokeDashoffset={-offset} transform={`rotate(-90 ${cx} ${cy})`}/>);
+        offset+=dash; return el;
+      })}
+      <text x={cx} y={cy-6} textAnchor="middle" fontSize={24} fontWeight={800} fill={A.black} fontFamily="Syne,sans-serif">{total}</text>
+      <text x={cx} y={cy+14} textAnchor="middle" fontSize={9} fill={A.gray500} fontFamily="DM Mono,monospace">KEY RESULTS</text>
+    </svg>
+  );
+}
 
-function AIChat({ okrs, apiKey, onClose }) {
-  const [messages, setMessages] = useState([
-    { role: "assistant", content: "Hi! I have full context on your Q1 2026 OKRs. Ask me anything — which KRs are most at risk, summaries by department, trends, or what needs attention this week." }
-  ]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const bottomRef = useRef(null);
+function BarChart({ data, height=140 }) {
+  if(!data||!data.length) return null;
+  const max=Math.max(...data.map(d=>d.value),1);
+  const barW=36, gap=8, total=data.length;
+  const svgW=total*(barW+gap);
+  return (
+    <svg viewBox={`0 0 ${svgW} ${height+30}`} style={{ width:"100%", overflow:"visible" }}>
+      {data.map((d,i)=>{
+        const cfg=STATUS_CFG[d.status]||STATUS_CFG["On Track"];
+        const barH=Math.max((d.value/max)*height,2);
+        const x=i*(barW+gap), y=height-barH;
+        return (
+          <g key={i}>
+            <rect x={x} y={y} width={barW} height={barH} rx={3} fill={cfg.dot} opacity={0.9}/>
+            <text x={x+barW/2} y={height+12} textAnchor="middle" fontSize={8.5} fill={A.gray500} fontFamily="DM Mono,monospace">{d.label}</text>
+            <text x={x+barW/2} y={y-4} textAnchor="middle" fontSize={9} fill={A.gray700} fontFamily="DM Mono,monospace">{d.value}%</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+function Dashboard({ okrs }) {
+  const total=okrs.length;
+  const onTrack=okrs.filter(o=>o.status==="On Track").length;
+  const atRisk=okrs.filter(o=>o.status==="At Risk").length;
+  const offTrack=okrs.filter(o=>o.status==="Off Track").length;
+  const completed=okrs.filter(o=>o.status==="Completed").length;
 
-  const systemPrompt = `You are an OKR analyst assistant. You have full access to the company's Q1 2026 OKR data. Here is the complete dataset:
+  const deptData=DEPARTMENTS.map(d=>{
+    const items=okrs.filter(o=>o.dept===d);
+    if(!items.length) return null;
+    const avg=Math.round(items.reduce((a,o)=>a+o.pct,0)/items.length);
+    const worst=items.find(o=>o.status==="Off Track")?"Off Track":items.find(o=>o.status==="At Risk")?"At Risk":items.find(o=>o.status==="Completed")?"Completed":"On Track";
+    const lbl=d.length>10?d.slice(0,9)+"…":d;
+    return { label:lbl, fullName:d, value:avg, status:worst, count:items.length, atRisk:items.filter(o=>o.status==="At Risk"||o.status==="Off Track").length };
+  }).filter(Boolean);
 
-${JSON.stringify(okrs.map(o => ({
-  id: o.id,
-  dept: o.dept,
-  kr: o.kr,
-  objective: o.obj,
-  companyKR: o.companyKR,
-  owner: o.owner,
-  start: o.start,
-  target: o.target,
-  current: o.current,
-  progress: o.pct + "%",
-  status: o.status,
-  weeklyUpdate: o.update,
-  wow: o.wow,
-})), null, 2)}
+  const mostAtRisk=[...okrs].filter(o=>o.status==="At Risk"||o.status==="Off Track").sort((a,b)=>a.pct-b.pct).slice(0,5);
 
-Quarter: Q1 2026 (Jan 26 – Apr 10, 2026). Current date: March 9, 2026. Timeline: 71.6% elapsed (53/74 days).
+  const ckrSummary=COMPANY_KRS.map(ckr=>{
+    const items=okrs.filter(o=>o.companyKR===ckr);
+    if(!items.length) return null;
+    const avg=Math.round(items.reduce((a,o)=>a+o.pct,0)/items.length);
+    const s=avg>=80?"Completed":avg>=50?"On Track":avg>=20?"At Risk":"Off Track";
+    return { fullLabel:ckr, avg, count:items.length, status:s };
+  }).filter(Boolean);
 
-Total KRs: ${okrs.length}
-On Track: ${okrs.filter(o => o.status === "On Track").length}
-At Risk: ${okrs.filter(o => o.status === "At Risk").length}
-Off Track: ${okrs.filter(o => o.status === "Off Track").length}
-Completed: ${okrs.filter(o => o.status === "Completed").length}
+  const card=(children,style={})=>(
+    <div style={{ background:A.white, border:`1px solid ${A.gray300}`, borderRadius:12, padding:"20px 22px", ...style }}>{children}</div>
+  );
+  const cardTitle=(t,sub)=>(
+    <div style={{ marginBottom:16 }}>
+      <div style={{ fontSize:13, fontWeight:700, color:A.black }}>{t}</div>
+      {sub&&<div style={{ fontSize:11, color:A.gray500, marginTop:2, fontFamily:"'DM Mono',monospace" }}>{sub}</div>}
+    </div>
+  );
 
-Be concise, insightful, and action-oriented. Use bullet points when listing multiple items. Reference specific KRs and owners by name. When asked for risk analysis, prioritize At Risk and Off Track items. Format numbers clearly.`;
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+      {/* Stats row */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12 }}>
+        {[
+          { label:"Total KRs",  value:total,     color:A.black,  sub:`${DEPARTMENTS.length} depts` },
+          { label:"On Track",   value:onTrack,   color:A.green,  sub:`${total?Math.round(onTrack/total*100):0}%` },
+          { label:"At Risk",    value:atRisk,    color:A.amber,  sub:`${total?Math.round(atRisk/total*100):0}%` },
+          { label:"Off Track",  value:offTrack,  color:A.red,    sub:`${total?Math.round(offTrack/total*100):0}%` },
+          { label:"Completed",  value:completed, color:A.teal,   sub:`${total?Math.round(completed/total*100):0}%` },
+        ].map(s=>(
+          <div key={s.label} style={{ background:A.white, border:`1px solid ${A.gray300}`, borderRadius:12, padding:"16px 18px", borderTop:`3px solid ${s.color}` }}>
+            <div style={{ fontSize:10, color:A.gray500, textTransform:"uppercase", letterSpacing:"0.1em", fontFamily:"'DM Mono',monospace", marginBottom:8 }}>{s.label}</div>
+            <div style={{ fontSize:30, fontWeight:800, color:s.color, lineHeight:1 }}>{s.value}</div>
+            <div style={{ fontSize:11, color:A.gray400, marginTop:5, fontFamily:"'DM Mono',monospace" }}>{s.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Row 2: donut + bar chart */}
+      <div style={{ display:"grid", gridTemplateColumns:"250px 1fr", gap:12 }}>
+        {card(
+          <>
+            {cardTitle("Status breakdown","Q1 2026 · all KRs")}
+            <div style={{ display:"flex", justifyContent:"center", marginBottom:14 }}>
+              <DonutChart size={150} segments={[
+                { value:onTrack,   color:A.greenMid },
+                { value:atRisk,    color:A.amber },
+                { value:offTrack,  color:A.red },
+                { value:completed, color:A.teal },
+              ]}/>
+            </div>
+            {[
+              { label:"On Track",  value:onTrack,   color:A.greenMid },
+              { label:"At Risk",   value:atRisk,    color:A.amber },
+              { label:"Off Track", value:offTrack,  color:A.red },
+              { label:"Completed", value:completed, color:A.teal },
+            ].map(s=>(
+              <div key={s.label} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:7 }}>
+                <span style={{ width:8, height:8, borderRadius:"50%", background:s.color, flexShrink:0 }}/>
+                <span style={{ fontSize:12, color:A.gray700, flex:1 }}>{s.label}</span>
+                <span style={{ fontSize:12, fontWeight:700, color:A.black, fontFamily:"'DM Mono',monospace" }}>{s.value}</span>
+                <span style={{ fontSize:11, color:A.gray400, fontFamily:"'DM Mono',monospace", minWidth:28, textAlign:"right" }}>{total?Math.round(s.value/total*100):0}%</span>
+              </div>
+            ))}
+          </>
+        )}
+        {card(
+          <>
+            {cardTitle("Average progress by department","% — lower bars need more attention")}
+            <BarChart data={deptData} height={130}/>
+          </>
+        )}
+      </div>
+
+      {/* Row 3: at-risk + company KRs */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+        {card(
+          <>
+            {cardTitle("Needs attention",`${mostAtRisk.length} KRs at risk or off track`)}
+            {mostAtRisk.length===0
+              ? <div style={{ fontSize:13, color:A.gray400 }}>All KRs are on track 🎉</div>
+              : mostAtRisk.map(o=>(
+                <div key={o.id} style={{ marginBottom:12, paddingBottom:12, borderBottom:`1px solid ${A.gray200}` }}>
+                  <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:8, marginBottom:4 }}>
+                    <div style={{ fontSize:12, color:A.black, lineHeight:1.4, flex:1 }}>{o.kr}</div>
+                    <Badge status={o.status} small/>
+                  </div>
+                  <div style={{ fontSize:11, color:A.gray400, fontFamily:"'DM Mono',monospace", marginBottom:5 }}>{o.dept} · {o.owner}</div>
+                  <ProgressBar pct={o.pct} status={o.status} height={4}/>
+                </div>
+              ))
+            }
+          </>
+        )}
+        {card(
+          <>
+            {cardTitle("Company KR progress","avg across all department KRs")}
+            {ckrSummary.map(ckr=>(
+              <div key={ckr.fullLabel} style={{ marginBottom:12 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
+                  <div style={{ fontSize:12, color:A.black, lineHeight:1.3, flex:1, paddingRight:8 }}>{ckr.fullLabel}</div>
+                  <span style={{ fontSize:11, fontFamily:"'DM Mono',monospace", color:A.gray400, whiteSpace:"nowrap" }}>{ckr.count} KRs</span>
+                </div>
+                <ProgressBar pct={ckr.avg} status={ckr.status} height={4}/>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+
+      {/* Row 4: dept table */}
+      {card(
+        <>
+          {cardTitle("Department health")}
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+            <thead>
+              <tr style={{ borderBottom:`1px solid ${A.gray300}` }}>
+                {["Department","KRs","At risk","Avg progress","Overall"].map(h=>(
+                  <th key={h} style={{ textAlign:h==="Department"||h==="Overall"?"left":"center", padding:"6px 10px", fontSize:10, color:A.gray500, fontWeight:600, fontFamily:"'DM Mono',monospace", textTransform:"uppercase", letterSpacing:"0.08em" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {deptData.map(d=>(
+                <tr key={d.fullName} style={{ borderBottom:`1px solid ${A.gray200}` }}>
+                  <td style={{ padding:"10px 10px", fontWeight:700, color:A.black }}>{d.fullName}</td>
+                  <td style={{ padding:"10px 10px", textAlign:"center", color:A.gray500, fontFamily:"'DM Mono',monospace" }}>{d.count}</td>
+                  <td style={{ padding:"10px 10px", textAlign:"center" }}>
+                    {d.atRisk>0?<span style={{ color:A.red, fontWeight:700, fontFamily:"'DM Mono',monospace" }}>{d.atRisk}</span>:<span style={{ color:A.gray300 }}>—</span>}
+                  </td>
+                  <td style={{ padding:"10px 10px", minWidth:160 }}><ProgressBar pct={d.value} status={d.status} height={5}/></td>
+                  <td style={{ padding:"10px 10px" }}><Badge status={d.status} small/></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
+  );
+}
+
+function AIChat({ okrs, onClose }) {
+  const [messages, setMessages]=useState([{ role:"assistant", content:"Hi! I have full context on all 55 Q1 OKRs. Ask me about risks, department summaries, what needs leadership attention, or anything else." }]);
+  const [input, setInput]=useState("");
+  const [loading, setLoading]=useState(false);
+  const bottomRef=useRef(null);
+  useEffect(()=>{ bottomRef.current?.scrollIntoView({ behavior:"smooth" }); },[messages]);
+
+  const sp=`You are an OKR analyst for Amenitiz. Q1 2026 data (Jan 26–Apr 10, now March 9, timeline 71.6% elapsed):
+${JSON.stringify(okrs.map(o=>({ dept:o.dept, kr:o.kr, owner:o.owner, progress:o.pct+"%", status:o.status, current:o.current, target:o.target, update:o.update, wow:o.wow })),null,2)}
+Stats: ${okrs.length} total · ${okrs.filter(o=>o.status==="On Track").length} On Track · ${okrs.filter(o=>o.status==="At Risk").length} At Risk · ${okrs.filter(o=>o.status==="Off Track").length} Off Track · ${okrs.filter(o=>o.status==="Completed").length} Completed.
+Be concise and action-oriented. Use bullets. Reference owners by name.`;
 
   async function send() {
-    if (!input.trim() || loading) return;
-    const userMsg = { role: "user", content: input.trim() };
-    setMessages(m => [...m, userMsg]);
-    setInput("");
-    setLoading(true);
-
+    if(!input.trim()||loading) return;
+    const userMsg={ role:"user", content:input.trim() };
+    setMessages(m=>[...m,userMsg]); setInput(""); setLoading(true);
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          system: systemPrompt,
-          messages: [...messages.slice(1), userMsg].map(m => ({ role: m.role, content: m.content })),
-        }),
-      });
-      const data = await res.json();
-      const reply = data.content?.[0]?.text || "Sorry, I couldn't process that.";
-      setMessages(m => [...m, { role: "assistant", content: reply }]);
-    } catch (e) {
-      setMessages(m => [...m, { role: "assistant", content: "Error connecting to AI. Check your API key and network." }]);
-    }
+      const res=await fetch("https://api.anthropic.com/v1/messages",{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:1000, system:sp, messages:[...messages.slice(1),userMsg].map(m=>({ role:m.role, content:m.content })) }) });
+      const data=await res.json();
+      setMessages(m=>[...m,{ role:"assistant", content:data.content?.[0]?.text||"Error." }]);
+    } catch { setMessages(m=>[...m,{ role:"assistant", content:"Connection error. Check your API key." }]); }
     setLoading(false);
   }
 
   return (
-    <div style={{
-      position: "fixed", top: 0, right: 0, bottom: 0, width: 400,
-      background: "#0d0d0d", borderLeft: "1px solid #222",
-      display: "flex", flexDirection: "column", zIndex: 1000,
-      fontFamily: "'Syne', sans-serif",
-    }}>
-      <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid #1a1a1a", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+    <div style={{ position:"fixed", top:0, right:0, bottom:0, width:400, background:A.white, borderLeft:`1px solid ${A.gray300}`, display:"flex", flexDirection:"column", zIndex:200, fontFamily:"'Syne',sans-serif" }}>
+      <div style={{ padding:"16px 20px", borderBottom:`1px solid ${A.gray300}`, display:"flex", alignItems:"center", justifyContent:"space-between", background:A.green }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", letterSpacing: "0.05em" }}>OKR AI Assistant</div>
-          <div style={{ fontSize: 11, color: "#555", fontFamily: "'DM Mono', monospace", marginTop: 2 }}>{okrs.length} key results in context</div>
+          <div style={{ fontSize:14, fontWeight:700, color:A.white }}>AI Assistant</div>
+          <div style={{ fontSize:11, color:"rgba(255,255,255,0.6)", fontFamily:"'DM Mono',monospace", marginTop:1 }}>{okrs.length} KRs in context</div>
         </div>
-        <button onClick={onClose} style={{ background: "none", border: "1px solid #2a2a2a", color: "#666", cursor: "pointer", borderRadius: 6, padding: "4px 10px", fontSize: 12 }}>✕</button>
+        <button onClick={onClose} style={{ background:"rgba(255,255,255,0.15)", border:"none", color:A.white, cursor:"pointer", borderRadius:6, padding:"5px 12px", fontSize:12 }}>✕</button>
       </div>
-
-      <div style={{ flex: 1, overflow: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-        {messages.map((m, i) => (
-          <div key={i} style={{
-            alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-            maxWidth: "85%",
-          }}>
-            <div style={{
-              padding: "10px 14px", borderRadius: m.role === "user" ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
-              background: m.role === "user" ? "#1a6b3c" : "#1a1a1a",
-              color: "#e8e8e8", fontSize: 13, lineHeight: 1.6,
-              whiteSpace: "pre-wrap",
-            }}>{m.content}</div>
+      <div style={{ flex:1, overflow:"auto", padding:14, display:"flex", flexDirection:"column", gap:10, background:A.gray100 }}>
+        {messages.map((m,i)=>(
+          <div key={i} style={{ alignSelf:m.role==="user"?"flex-end":"flex-start", maxWidth:"88%" }}>
+            <div style={{ padding:"10px 14px", borderRadius:m.role==="user"?"14px 14px 4px 14px":"14px 14px 14px 4px", background:m.role==="user"?A.green:A.white, color:m.role==="user"?A.white:A.black, fontSize:13, lineHeight:1.6, whiteSpace:"pre-wrap", border:m.role==="assistant"?`1px solid ${A.gray300}`:"none" }}>{m.content}</div>
           </div>
         ))}
-        {loading && (
-          <div style={{ alignSelf: "flex-start", padding: "10px 14px", background: "#1a1a1a", borderRadius: "14px 14px 14px 4px", color: "#555", fontSize: 13 }}>
-            Thinking…
-          </div>
-        )}
-        <div ref={bottomRef} />
+        {loading&&<div style={{ alignSelf:"flex-start", padding:"10px 14px", background:A.white, borderRadius:"14px 14px 14px 4px", color:A.gray400, fontSize:13, border:`1px solid ${A.gray300}` }}>Thinking…</div>}
+        <div ref={bottomRef}/>
       </div>
-
-      <div style={{ padding: 16, borderTop: "1px solid #1a1a1a" }}>
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && !e.shiftKey && send()}
-            placeholder="Which KRs need attention this week?"
-            style={{
-              flex: 1, background: "#1a1a1a", border: "1px solid #2a2a2a",
-              borderRadius: 8, padding: "10px 12px", color: "#e0e0e0",
-              fontSize: 13, outline: "none", fontFamily: "'Syne', sans-serif",
-            }}
-          />
-          <button onClick={send} disabled={loading || !input.trim()} style={{
-            background: "#1a6b3c", border: "none", color: "#fff",
-            borderRadius: 8, padding: "10px 16px", cursor: "pointer",
-            fontSize: 13, fontWeight: 600, opacity: loading || !input.trim() ? 0.5 : 1,
-          }}>↑</button>
+      <div style={{ padding:14, borderTop:`1px solid ${A.gray300}`, background:A.white }}>
+        <div style={{ display:"flex", gap:8 }}>
+          <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()} placeholder="Ask about your OKRs…" style={{ flex:1, background:A.gray100, border:`1px solid ${A.gray300}`, borderRadius:8, padding:"9px 12px", color:A.black, fontSize:13, outline:"none", fontFamily:"'Syne',sans-serif" }}/>
+          <button onClick={send} disabled={loading||!input.trim()} style={{ background:A.green, border:"none", color:A.white, borderRadius:8, padding:"9px 16px", cursor:"pointer", fontSize:16, opacity:loading||!input.trim()?0.5:1 }}>↑</button>
         </div>
-        <div style={{ fontSize: 10, color: "#333", marginTop: 8, textAlign: "center", fontFamily: "'DM Mono', monospace" }}>
-          Powered by Claude · Your API key is used client-side only
-        </div>
+        <div style={{ fontSize:10, color:A.gray400, marginTop:7, textAlign:"center", fontFamily:"'DM Mono',monospace" }}>Powered by Claude · key stored locally</div>
       </div>
     </div>
   );
 }
-
-// ─── Edit Modal ──────────────────────────────────────────────────────────────
 
 function EditModal({ okr, onSave, onClose }) {
-  const [form, setForm] = useState({
-    current: okr.current,
-    pct: okr.pct,
-    status: okr.status,
-    update: okr.update,
-    wow: okr.wow,
-  });
-
-  const field = (key, label, type = "text") => (
-    <div style={{ marginBottom: 14 }}>
-      <label style={{ display: "block", fontSize: 11, color: "#888", marginBottom: 4, fontFamily: "'DM Mono', monospace", textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</label>
-      {key === "status" ? (
-        <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
-          style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #e0e0e0", fontSize: 13, background: "#fff", fontFamily: "'Syne', sans-serif" }}>
-          {STATUSES.map(s => <option key={s}>{s}</option>)}
-        </select>
-      ) : key === "update" ? (
-        <textarea value={form[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-          rows={4} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #e0e0e0", fontSize: 13, fontFamily: "'Syne', sans-serif", resize: "vertical" }} />
-      ) : (
-        <input type={type} value={form[key]} onChange={e => setForm(f => ({ ...f, [key]: type === "number" ? Number(e.target.value) : e.target.value }))}
-          style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #e0e0e0", fontSize: 13, fontFamily: "'Syne', sans-serif", boxSizing: "border-box" }} />
-      )}
-    </div>
-  );
-
+  const [form, setForm]=useState({ current:okr.current, pct:okr.pct, status:okr.status, update:okr.update, wow:okr.wow });
+  const inp=(style={})=>({ width:"100%", padding:"8px 10px", borderRadius:7, border:`1px solid ${A.gray300}`, fontSize:13, fontFamily:"'Syne',sans-serif", outline:"none", boxSizing:"border-box", background:A.white, color:A.black, ...style });
+  const lbl=t=><div style={{ fontSize:10, color:A.gray500, fontFamily:"'DM Mono',monospace", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:5, marginTop:12 }}>{t}</div>;
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 900, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={onClose}>
-      <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: 480, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }} onClick={e => e.stopPropagation()}>
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 11, color: "#aaa", fontFamily: "'DM Mono', monospace", marginBottom: 6, textTransform: "uppercase" }}>{okr.dept} · {okr.owner}</div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#111", lineHeight: 1.4 }}>{okr.kr}</div>
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.35)", zIndex:300, display:"flex", alignItems:"center", justifyContent:"center" }} onClick={onClose}>
+      <div style={{ background:A.white, borderRadius:14, padding:28, width:480, maxWidth:"92vw", boxShadow:"0 20px 60px rgba(0,0,0,0.12)" }} onClick={e=>e.stopPropagation()}>
+        <div style={{ marginBottom:16 }}>
+          <div style={{ fontSize:10, color:A.gray400, fontFamily:"'DM Mono',monospace", marginBottom:5, textTransform:"uppercase" }}>{okr.dept} · {okr.owner}</div>
+          <div style={{ fontSize:14, fontWeight:700, color:A.black, lineHeight:1.4 }}>{okr.kr}</div>
         </div>
-        {field("current", "Current value")}
-        {field("pct", "Progress %", "number")}
-        {field("status", "Status")}
-        {field("wow", "Week-on-week change")}
-        {field("update", "Weekly update")}
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
-          <button onClick={onClose} style={{ padding: "8px 20px", borderRadius: 6, border: "1px solid #e0e0e0", background: "#fff", cursor: "pointer", fontSize: 13 }}>Cancel</button>
-          <button onClick={() => onSave(form)} style={{ padding: "8px 20px", borderRadius: 6, border: "none", background: "#111", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Save changes</button>
+        {lbl("Current value")}
+        <input value={form.current} onChange={e=>setForm(f=>({...f,current:e.target.value}))} style={inp()}/>
+        {lbl("Progress %")}
+        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:2 }}>
+          <input type="range" min={0} max={100} value={form.pct} onChange={e=>setForm(f=>({...f,pct:+e.target.value}))} style={{ flex:1, accentColor:A.green }}/>
+          <span style={{ fontSize:15, fontWeight:800, color:A.green, fontFamily:"'DM Mono',monospace", minWidth:36 }}>{form.pct}%</span>
+        </div>
+        {lbl("Status")}
+        <select value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))} style={inp()}>
+          {STATUSES.map(s=><option key={s}>{s}</option>)}
+        </select>
+        {lbl("Week-on-week")}
+        <input value={form.wow} onChange={e=>setForm(f=>({...f,wow:e.target.value}))} placeholder="+5% or -2%" style={inp()}/>
+        {lbl("Weekly update")}
+        <textarea value={form.update} onChange={e=>setForm(f=>({...f,update:e.target.value}))} rows={3} style={inp({ resize:"vertical" })}/>
+        <div style={{ display:"flex", gap:10, justifyContent:"flex-end", marginTop:20 }}>
+          <button onClick={onClose} style={{ padding:"9px 20px", borderRadius:7, border:`1px solid ${A.gray300}`, background:A.white, cursor:"pointer", fontSize:13, color:A.gray700 }}>Cancel</button>
+          <button onClick={()=>onSave(form)} style={{ padding:"9px 22px", borderRadius:7, border:"none", background:A.green, color:A.white, cursor:"pointer", fontSize:13, fontWeight:700 }}>Save changes</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ─── Main App ────────────────────────────────────────────────────────────────
-
 export default function App() {
-  const [okrs, setOkrs] = useState(INITIAL_OKR_DATA);
-  const [deptFilter, setDeptFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [krFilter, setKrFilter] = useState("");
-  const [search, setSearch] = useState("");
-  const [editing, setEditing] = useState(null);
-  const [aiOpen, setAiOpen] = useState(false);
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem("okr_api_key") || "");
-  const [apiKeyInput, setApiKeyInput] = useState("");
-  const [showApiPrompt, setShowApiPrompt] = useState(false);
-  const [collapsed, setCollapsed] = useState({});
-  const [expandedKR, setExpandedKR] = useState(null);
+  const [okrs, setOkrs]=useState(INITIAL_OKR_DATA);
+  const [view, setView]=useState("dashboard");
+  const [deptFilter, setDeptFilter]=useState("");
+  const [statusFilter, setStatusFilter]=useState("");
+  const [krFilter, setKrFilter]=useState("");
+  const [search, setSearch]=useState("");
+  const [editing, setEditing]=useState(null);
+  const [aiOpen, setAiOpen]=useState(false);
+  const [showApiPrompt, setShowApiPrompt]=useState(false);
+  const [apiKeyInput, setApiKeyInput]=useState("");
+  const [collapsed, setCollapsed]=useState({});
+  const [expandedKR, setExpandedKR]=useState(null);
 
-  const filtered = okrs.filter(r => {
-    if (deptFilter && r.dept !== deptFilter) return false;
-    if (statusFilter && r.status !== statusFilter) return false;
-    if (krFilter && r.companyKR !== krFilter) return false;
-    if (search && !r.kr.toLowerCase().includes(search.toLowerCase()) && !r.owner.toLowerCase().includes(search.toLowerCase()) && !r.dept.toLowerCase().includes(search.toLowerCase())) return false;
+  const filtered=okrs.filter(r=>{
+    if(deptFilter&&r.dept!==deptFilter) return false;
+    if(statusFilter&&r.status!==statusFilter) return false;
+    if(krFilter&&r.companyKR!==krFilter) return false;
+    if(search&&!r.kr.toLowerCase().includes(search.toLowerCase())&&!r.owner.toLowerCase().includes(search.toLowerCase())&&!r.dept.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
-  const byDept = {};
-  filtered.forEach(r => { if (!byDept[r.dept]) byDept[r.dept] = []; byDept[r.dept].push(r); });
+  const byDept={};
+  filtered.forEach(r=>{ if(!byDept[r.dept]) byDept[r.dept]=[]; byDept[r.dept].push(r); });
 
-  const stats = {
-    total: filtered.length,
-    onTrack: filtered.filter(r => r.status === "On Track").length,
-    atRisk: filtered.filter(r => r.status === "At Risk").length,
-    offTrack: filtered.filter(r => r.status === "Off Track").length,
-    completed: filtered.filter(r => r.status === "Completed").length,
-    avg: filtered.length ? Math.round(filtered.reduce((a, r) => a + r.pct, 0) / filtered.length) : 0,
-  };
-
-  function saveEdit(form) {
-    setOkrs(prev => prev.map(o => o.id === editing.id ? { ...o, ...form } : o));
-    setEditing(null);
-  }
+  function saveEdit(form) { setOkrs(prev=>prev.map(o=>o.id===editing.id?{...o,...form}:o)); setEditing(null); }
 
   function openAI() {
-    if (!apiKey) { setShowApiPrompt(true); return; }
+    if(!localStorage.getItem("okr_api_key")){ setShowApiPrompt(true); return; }
     setAiOpen(true);
   }
 
-  function saveApiKey() {
-    localStorage.setItem("okr_api_key", apiKeyInput);
-    setApiKey(apiKeyInput);
-    setShowApiPrompt(false);
-    setAiOpen(true);
-  }
-
-  const S = {
-    app: { fontFamily: "'Syne', sans-serif", minHeight: "100vh", background: "#f7f7f5", color: "#111" },
-    header: { background: "#0d0d0d", padding: "0 32px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 56, position: "sticky", top: 0, zIndex: 100 },
-    headerTitle: { fontSize: 16, fontWeight: 700, color: "#fff", letterSpacing: "0.08em", textTransform: "uppercase" },
-    headerSub: { fontSize: 11, color: "#444", fontFamily: "'DM Mono', monospace", marginTop: 1 },
-    main: { padding: aiOpen ? "28px 432px 28px 28px" : "28px 28px 28px 28px", transition: "padding 0.3s ease" },
-    statsRow: { display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12, marginBottom: 24 },
-    statCard: (accent) => ({
-      background: "#fff", borderRadius: 10, padding: "16px 18px",
-      borderTop: `3px solid ${accent}`,
-      boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-    }),
-    statLabel: { fontSize: 10, color: "#aaa", textTransform: "uppercase", letterSpacing: "0.1em", fontFamily: "'DM Mono', monospace", marginBottom: 6 },
-    statValue: { fontSize: 26, fontWeight: 700, color: "#111", lineHeight: 1 },
-    statSub: { fontSize: 10, color: "#bbb", marginTop: 4, fontFamily: "'DM Mono', monospace" },
-    toolbar: { display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", alignItems: "center" },
-    input: { padding: "8px 12px", borderRadius: 7, border: "1px solid #e4e4e4", fontSize: 13, fontFamily: "'Syne', sans-serif", background: "#fff", outline: "none", color: "#111" },
-    select: { padding: "8px 12px", borderRadius: 7, border: "1px solid #e4e4e4", fontSize: 13, fontFamily: "'Syne', sans-serif", background: "#fff", outline: "none", color: "#111", cursor: "pointer" },
-    aiBtn: { marginLeft: "auto", padding: "8px 18px", borderRadius: 7, border: "none", background: "#0d0d0d", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, letterSpacing: "0.02em" },
-    section: { marginBottom: 16 },
-    sectionHeader: { display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "#fff", borderRadius: 8, cursor: "pointer", marginBottom: 2, border: "1px solid #ebebeb", userSelect: "none" },
-    sectionTitle: { fontSize: 13, fontWeight: 700, color: "#111", letterSpacing: "0.04em", flex: 1 },
-    sectionMeta: { fontSize: 11, color: "#aaa", fontFamily: "'DM Mono', monospace" },
-    krRow: { background: "#fff", borderRadius: 8, padding: "14px 16px", marginBottom: 4, border: "1px solid #ebebeb", cursor: "pointer", transition: "border-color 0.15s" },
-    krRowExpanded: { background: "#fff", borderRadius: 8, padding: "14px 16px", marginBottom: 4, border: "1px solid #d0d0d0" },
-    krTop: { display: "flex", alignItems: "flex-start", gap: 12 },
-    krName: { flex: 1, fontSize: 13, color: "#111", lineHeight: 1.45, fontWeight: 500 },
-    krMeta: { fontSize: 11, color: "#aaa", fontFamily: "'DM Mono', monospace", marginTop: 5, display: "flex", gap: 14 },
-    krUpdate: { fontSize: 12, color: "#555", lineHeight: 1.5, marginTop: 10, padding: "10px 12px", background: "#f9f9f9", borderRadius: 6, borderLeft: "3px solid #e0e0e0" },
-    editBtn: { padding: "5px 12px", borderRadius: 5, border: "1px solid #e0e0e0", background: "#fff", cursor: "pointer", fontSize: 11, color: "#666", fontFamily: "'DM Mono', monospace" },
-  };
-
-  const wowColor = w => !w || w === "0%" ? "#aaa" : w.startsWith("+") ? "#2e7d32" : "#c62828";
+  const wowColor=w=>!w||w==="0%"?A.gray400:w.startsWith("+")?A.green:A.red;
+  const sel={ padding:"8px 12px", borderRadius:8, border:`1px solid ${A.gray300}`, fontSize:12, fontFamily:"'Syne',sans-serif", background:A.white, outline:"none", color:A.black, cursor:"pointer" };
 
   return (
-    <div style={S.app}>
-      <header style={S.header}>
-        <div>
-          <div style={S.headerTitle}>OKR Tracker</div>
-          <div style={S.headerSub}>Q1 2026 · 53/74 days · 71.6% elapsed</div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 11, color: "#666", fontFamily: "'DM Mono', monospace" }}>Timeline</div>
-            <div style={{ width: 120, height: 4, background: "#222", borderRadius: 2, overflow: "hidden", marginTop: 3 }}>
-              <div style={{ width: "71.6%", height: "100%", background: "#3a8a5a" }} />
+    <div style={{ fontFamily:"'Syne',sans-serif", minHeight:"100vh", background:A.gray100, color:A.black }}>
+      <header style={{ background:A.white, borderBottom:`1px solid ${A.gray300}`, padding:"0 28px", height:56, display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:16 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <div style={{ width:28, height:28, background:A.green, borderRadius:6, display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <span style={{ color:A.white, fontSize:14, fontWeight:800 }}>A</span>
             </div>
+            <span style={{ fontSize:15, fontWeight:800, color:A.black, letterSpacing:"-0.01em" }}>OKR Tracker</span>
           </div>
-          <button onClick={openAI} style={{ ...S.aiBtn, background: aiOpen ? "#1a6b3c" : "#0d0d0d" }}>
-            <span style={{ fontSize: 14 }}>✦</span> AI Assistant
+          <div style={{ width:1, height:18, background:A.gray300 }}/>
+          <span style={{ fontSize:11, color:A.gray500, fontFamily:"'DM Mono',monospace" }}>Q1 2026 · 53/74 days</span>
+          <div style={{ width:72, height:4, background:A.gray200, borderRadius:2, overflow:"hidden" }}>
+            <div style={{ width:"71.6%", height:"100%", background:A.green }}/>
+          </div>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <div style={{ display:"flex", background:A.gray100, borderRadius:8, padding:3, border:`1px solid ${A.gray300}` }}>
+            {[["dashboard","Dashboard"],["list","All KRs"]].map(([v,label])=>(
+              <button key={v} onClick={()=>setView(v)} style={{ padding:"5px 14px", borderRadius:6, border:"none", cursor:"pointer", fontSize:12, fontWeight:600, background:view===v?A.white:"transparent", color:view===v?A.black:A.gray500, boxShadow:view===v?"0 1px 3px rgba(0,0,0,0.08)":"none", transition:"all 0.15s" }}>{label}</button>
+            ))}
+          </div>
+          <button onClick={openAI} style={{ padding:"7px 16px", borderRadius:8, border:"none", background:aiOpen?A.greenDark:A.green, color:A.white, fontSize:12, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:6 }}>
+            <span style={{ fontSize:12 }}>✦</span> AI Assistant
           </button>
         </div>
       </header>
 
-      <main style={S.main}>
-        {/* Stats */}
-        <div style={S.statsRow}>
-          {[
-            { label: "Total KRs", value: stats.total, sub: `${Object.keys(byDept).length} depts`, accent: "#e0e0e0" },
-            { label: "On Track", value: stats.onTrack, sub: `${stats.total ? Math.round(stats.onTrack / stats.total * 100) : 0}%`, accent: "#4caf50" },
-            { label: "At Risk", value: stats.atRisk, sub: `${stats.total ? Math.round(stats.atRisk / stats.total * 100) : 0}%`, accent: "#ff9800" },
-            { label: "Off Track", value: stats.offTrack, sub: `${stats.total ? Math.round(stats.offTrack / stats.total * 100) : 0}%`, accent: "#f44336" },
-            { label: "Completed", value: stats.completed, sub: `${stats.total ? Math.round(stats.completed / stats.total * 100) : 0}%`, accent: "#009688" },
-            { label: "Avg Progress", value: `${stats.avg}%`, sub: "across all KRs", accent: "#1565c0" },
-          ].map(s => (
-            <div key={s.label} style={S.statCard(s.accent)}>
-              <div style={S.statLabel}>{s.label}</div>
-              <div style={S.statValue}>{s.value}</div>
-              <div style={S.statSub}>{s.sub}</div>
+      <main style={{ padding: aiOpen?"22px 420px 22px 22px":"22px", transition:"padding 0.3s", maxWidth: aiOpen?"none":1200, margin: aiOpen?0:"0 auto" }}>
+        {view==="dashboard" && <Dashboard okrs={okrs}/>}
+
+        {view==="list" && (
+          <>
+            <div style={{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap", alignItems:"center" }}>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search KRs, owners…" style={{ ...sel, width:220, cursor:"text" }}/>
+              <select value={deptFilter} onChange={e=>setDeptFilter(e.target.value)} style={sel}>
+                <option value="">All departments</option>
+                {DEPARTMENTS.map(d=><option key={d}>{d}</option>)}
+              </select>
+              <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={sel}>
+                <option value="">All statuses</option>
+                {STATUSES.map(s=><option key={s}>{s}</option>)}
+              </select>
+              <select value={krFilter} onChange={e=>setKrFilter(e.target.value)} style={{ ...sel, maxWidth:220 }}>
+                <option value="">All company KRs</option>
+                {COMPANY_KRS.map(k=><option key={k} value={k}>{k.length>42?k.slice(0,39)+"…":k}</option>)}
+              </select>
+              {(deptFilter||statusFilter||krFilter||search)&&(
+                <button onClick={()=>{ setDeptFilter(""); setStatusFilter(""); setKrFilter(""); setSearch(""); }} style={{ ...sel, color:A.red, borderColor:"#fecaca", background:A.redLight }}>✕ Clear</button>
+              )}
+              <span style={{ marginLeft:"auto", fontSize:12, color:A.gray500, fontFamily:"'DM Mono',monospace" }}>{filtered.length} results</span>
             </div>
-          ))}
-        </div>
 
-        {/* Toolbar */}
-        <div style={S.toolbar}>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search KRs, owners…" style={{ ...S.input, width: 200 }} />
-          <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)} style={S.select}>
-            <option value="">All departments</option>
-            {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
-          </select>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={S.select}>
-            <option value="">All statuses</option>
-            {STATUSES.map(s => <option key={s}>{s}</option>)}
-          </select>
-          <select value={krFilter} onChange={e => setKrFilter(e.target.value)} style={{ ...S.select, maxWidth: 240 }}>
-            <option value="">All company KRs</option>
-            {COMPANY_KRS.map(k => <option key={k} value={k}>{k.length > 45 ? k.slice(0, 42) + "…" : k}</option>)}
-          </select>
-          {(deptFilter || statusFilter || krFilter || search) && (
-            <button onClick={() => { setDeptFilter(""); setStatusFilter(""); setKrFilter(""); setSearch(""); }}
-              style={{ ...S.input, cursor: "pointer", color: "#e53935", borderColor: "#fecdd3", background: "#fff5f5" }}>
-              Clear filters
-            </button>
-          )}
-        </div>
-
-        {/* KR List */}
-        {Object.keys(byDept).sort().map(dept => {
-          const items = byDept[dept];
-          const isOpen = collapsed[dept] !== true;
-          const risks = items.filter(r => r.status === "At Risk" || r.status === "Off Track").length;
-          const done = items.filter(r => r.status === "Completed").length;
-          const avgPct = Math.round(items.reduce((a, r) => a + r.pct, 0) / items.length);
-
-          return (
-            <div key={dept} style={S.section}>
-              <div style={S.sectionHeader} onClick={() => setCollapsed(c => ({ ...c, [dept]: isOpen }))}>
-                <span style={{ fontSize: 10, color: isOpen ? "#aaa" : "#666", transition: "transform 0.2s", display: "inline-block", transform: isOpen ? "rotate(90deg)" : "none" }}>▶</span>
-                <span style={S.sectionTitle}>{dept}</span>
-                <span style={S.sectionMeta}>{items.length} KRs · {avgPct}% avg</span>
-                {risks > 0 && <span style={{ fontSize: 11, background: "#fff8e1", color: "#e65100", padding: "2px 8px", borderRadius: 12, fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>{risks} at risk</span>}
-                {done > 0 && <span style={{ fontSize: 11, background: "#e0f2f1", color: "#004d40", padding: "2px 8px", borderRadius: 12, fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>{done} done</span>}
-              </div>
-
-              {isOpen && items.map(okr => {
-                const isExpanded = expandedKR === okr.id;
-                return (
-                  <div key={okr.id}
-                    style={{ ...(isExpanded ? S.krRowExpanded : S.krRow) }}
-                    onClick={() => setExpandedKR(isExpanded ? null : okr.id)}
-                  >
-                    <div style={S.krTop}>
-                      <div style={{ flex: 1 }}>
-                        <div style={S.krName}>{okr.kr}</div>
-                        <div style={S.krMeta}>
-                          <span>👤 {okr.owner}</span>
-                          <span>{okr.start} → {okr.target}</span>
-                          <span style={{ color: "#bbb" }}>now: {okr.current}</span>
-                          {okr.wow && <span style={{ color: wowColor(okr.wow) }}>{okr.wow.startsWith("+") ? "↑" : okr.wow.startsWith("-") && okr.wow !== "0%" ? "↓" : ""} {okr.wow}</span>}
-                        </div>
-                        <div style={{ marginTop: 8 }}>
-                          <ProgressBar pct={okr.pct} status={okr.status} />
-                        </div>
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, minWidth: 90 }}>
-                        <Badge status={okr.status} />
-                        <button onClick={e => { e.stopPropagation(); setEditing(okr); }} style={S.editBtn}>Edit ↗</button>
-                      </div>
-                    </div>
-
-                    {isExpanded && (
-                      <div>
-                        <div style={S.krUpdate}>{okr.update}</div>
-                        <div style={{ marginTop: 8, fontSize: 11, color: "#bbb", fontFamily: "'DM Mono', monospace" }}>
-                          🎯 {okr.companyKR} &nbsp;·&nbsp; 📌 {okr.obj}
-                        </div>
-                      </div>
-                    )}
+            {Object.keys(byDept).sort().map(dept=>{
+              const items=byDept[dept];
+              const isOpen=collapsed[dept]!==true;
+              const risks=items.filter(r=>r.status==="At Risk"||r.status==="Off Track").length;
+              const done=items.filter(r=>r.status==="Completed").length;
+              const avgPct=Math.round(items.reduce((a,r)=>a+r.pct,0)/items.length);
+              return (
+                <div key={dept} style={{ marginBottom:10 }}>
+                  <div onClick={()=>setCollapsed(c=>({...c,[dept]:isOpen}))} style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 16px", background:A.white, borderRadius:10, cursor:"pointer", marginBottom:3, border:`1px solid ${A.gray300}`, userSelect:"none" }}>
+                    <span style={{ fontSize:10, color:isOpen?A.green:A.gray400, display:"inline-block", transform:isOpen?"rotate(90deg)":"none", transition:"transform 0.2s" }}>▶</span>
+                    <span style={{ fontSize:13, fontWeight:700, color:A.black, flex:1 }}>{dept}</span>
+                    <span style={{ fontSize:11, color:A.gray400, fontFamily:"'DM Mono',monospace" }}>{items.length} KRs · {avgPct}%</span>
+                    {risks>0&&<Badge status="At Risk" small/>}
+                    {done>0&&<Badge status="Completed" small/>}
                   </div>
-                );
-              })}
-            </div>
-          );
-        })}
-
-        {filtered.length === 0 && (
-          <div style={{ textAlign: "center", padding: "60px 20px", color: "#aaa", fontSize: 14 }}>
-            No key results match the current filters.
-          </div>
+                  {isOpen&&items.map(okr=>{
+                    const isExpanded=expandedKR===okr.id;
+                    return (
+                      <div key={okr.id} onClick={()=>setExpandedKR(isExpanded?null:okr.id)} style={{ background:A.white, borderRadius:8, padding:"13px 16px", marginBottom:3, border:`1px solid ${isExpanded?A.gray400:A.gray200}`, cursor:"pointer", marginLeft:12 }}>
+                        <div style={{ display:"flex", alignItems:"flex-start", gap:12 }}>
+                          <div style={{ flex:1 }}>
+                            <div style={{ fontSize:13, color:A.black, lineHeight:1.45, fontWeight:500, marginBottom:5 }}>{okr.kr}</div>
+                            <div style={{ fontSize:11, color:A.gray500, fontFamily:"'DM Mono',monospace", display:"flex", gap:14, marginBottom:7, flexWrap:"wrap" }}>
+                              <span>👤 {okr.owner}</span>
+                              <span>{okr.start} → {okr.target} · now {okr.current}</span>
+                              {okr.wow&&<span style={{ color:wowColor(okr.wow), fontWeight:600 }}>{okr.wow}</span>}
+                            </div>
+                            <ProgressBar pct={okr.pct} status={okr.status}/>
+                          </div>
+                          <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:7, minWidth:100 }}>
+                            <Badge status={okr.status}/>
+                            <button onClick={e=>{ e.stopPropagation(); setEditing(okr); }} style={{ padding:"4px 12px", borderRadius:5, border:`1px solid ${A.gray300}`, background:A.white, cursor:"pointer", fontSize:11, color:A.gray700, fontFamily:"'DM Mono',monospace" }}>Edit ↗</button>
+                          </div>
+                        </div>
+                        {isExpanded&&(
+                          <div style={{ marginTop:10 }}>
+                            <div style={{ fontSize:12, color:A.gray700, lineHeight:1.55, padding:"10px 12px", background:A.gray100, borderRadius:7, borderLeft:`3px solid ${A.green}` }}>{okr.update}</div>
+                            <div style={{ marginTop:7, fontSize:11, color:A.gray400, fontFamily:"'DM Mono',monospace" }}>🎯 {okr.companyKR} &nbsp;·&nbsp; 📌 {okr.obj}</div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+            {filtered.length===0&&<div style={{ textAlign:"center", padding:"60px 20px", color:A.gray400, fontSize:13 }}>No KRs match the current filters.</div>}
+          </>
         )}
       </main>
 
-      {/* Edit Modal */}
-      {editing && <EditModal okr={editing} onSave={saveEdit} onClose={() => setEditing(null)} />}
+      {editing&&<EditModal okr={editing} onSave={saveEdit} onClose={()=>setEditing(null)}/>}
 
-      {/* API Key prompt */}
-      {showApiPrompt && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 900, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setShowApiPrompt(false)}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 32, width: 440, boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Connect AI Assistant</div>
-            <div style={{ fontSize: 13, color: "#666", marginBottom: 20, lineHeight: 1.6 }}>
-              Enter your Anthropic API key to enable the AI assistant. Your key is stored locally in your browser and never sent to any server other than Anthropic's API.
+      {showApiPrompt&&(
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", zIndex:400, display:"flex", alignItems:"center", justifyContent:"center" }} onClick={()=>setShowApiPrompt(false)}>
+          <div style={{ background:A.white, borderRadius:14, padding:32, width:440, boxShadow:"0 20px 60px rgba(0,0,0,0.15)" }} onClick={e=>e.stopPropagation()}>
+            <div style={{ width:36, height:36, background:A.green, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:14 }}>
+              <span style={{ color:A.white, fontSize:18, fontWeight:800 }}>A</span>
             </div>
-            <input
-              type="password"
-              value={apiKeyInput}
-              onChange={e => setApiKeyInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && saveApiKey()}
-              placeholder="sk-ant-..."
-              style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #e0e0e0", fontSize: 13, fontFamily: "'DM Mono', monospace", boxSizing: "border-box", marginBottom: 16, outline: "none" }}
-            />
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button onClick={() => setShowApiPrompt(false)} style={{ padding: "9px 20px", borderRadius: 6, border: "1px solid #e0e0e0", background: "#fff", cursor: "pointer", fontSize: 13 }}>Cancel</button>
-              <button onClick={saveApiKey} style={{ padding: "9px 20px", borderRadius: 6, border: "none", background: "#111", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Connect</button>
+            <div style={{ fontSize:18, fontWeight:800, marginBottom:8, color:A.black }}>Connect AI Assistant</div>
+            <div style={{ fontSize:13, color:A.gray500, marginBottom:20, lineHeight:1.6 }}>Enter your Anthropic API key. Stored only in your browser, sent directly to Anthropic's API.</div>
+            <input type="password" value={apiKeyInput} onChange={e=>setApiKeyInput(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"){ localStorage.setItem("okr_api_key",apiKeyInput); setShowApiPrompt(false); setAiOpen(true); }}} placeholder="sk-ant-..." style={{ width:"100%", padding:"10px 12px", borderRadius:8, border:`1px solid ${A.gray300}`, fontSize:13, fontFamily:"'DM Mono',monospace", boxSizing:"border-box", marginBottom:16, outline:"none" }}/>
+            <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
+              <button onClick={()=>setShowApiPrompt(false)} style={{ padding:"9px 20px", borderRadius:7, border:`1px solid ${A.gray300}`, background:A.white, cursor:"pointer", fontSize:13 }}>Cancel</button>
+              <button onClick={()=>{ localStorage.setItem("okr_api_key",apiKeyInput); setShowApiPrompt(false); setAiOpen(true); }} style={{ padding:"9px 22px", borderRadius:7, border:"none", background:A.green, color:A.white, cursor:"pointer", fontSize:13, fontWeight:700 }}>Connect</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* AI Panel */}
-      {aiOpen && <AIChat okrs={filtered.length > 0 ? filtered : okrs} apiKey={apiKey} onClose={() => setAiOpen(false)} />}
+      {aiOpen&&<AIChat okrs={filtered.length>0?filtered:okrs} onClose={()=>setAiOpen(false)}/>}
     </div>
   );
 }
