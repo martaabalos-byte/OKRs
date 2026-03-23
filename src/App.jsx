@@ -606,32 +606,93 @@ function AlignmentView({ okrs }) {
 }
 
 // ─── Edit Modal ───────────────────────────────────────────────────────────────
-function EditModal({ okr, onSave, onClose }) {
-  const [form,setForm]=useState({ current:okr.current, pct:okr.pct, status:okr.status, update:okr.update, wow:okr.wow });
+function EditModal({ okr, onSave, onClose, allCompanyKRs=[] }) {
+  const [tab, setTab] = useState("progress");
+  const [form, setForm] = useState({
+    // Progress fields
+    current:okr.current, pct:okr.pct, status:okr.status, update:okr.update, wow:okr.wow,
+    // Definition fields
+    kr:okr.kr, owner:okr.owner, start:okr.start, target:okr.target,
+    dept:okr.dept, obj:okr.obj, companyKR:okr.companyKR,
+  });
   const inp=(s={})=>({ width:"100%", padding:"8px 10px", borderRadius:7, border:`1px solid ${A.gray300}`, fontSize:12, fontFamily:FONT, outline:"none", boxSizing:"border-box", background:A.white, color:A.black, ...s });
   const lbl=t=><div style={{ fontSize:10, color:A.gray500, fontFamily:FONT, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:5, marginTop:12, fontWeight:700 }}>{t}</div>;
+  const tabBtn=(id,label)=>(
+    <button onClick={()=>setTab(id)} style={{ padding:"6px 14px", borderRadius:7, border:"none", cursor:"pointer", fontSize:11, fontWeight:700, fontFamily:FONT, background:tab===id?A.blue:"transparent", color:tab===id?A.white:A.gray500, transition:"all 0.15s" }}>{label}</button>
+  );
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.35)", zIndex:300, display:"flex", alignItems:"center", justifyContent:"center" }} onClick={onClose}>
-      <div style={{ background:A.white, borderRadius:14, padding:28, width:480, maxWidth:"92vw", boxShadow:"0 20px 60px rgba(0,0,0,0.15)" }} onClick={e=>e.stopPropagation()}>
-        <div style={{ marginBottom:16 }}>
+      <div style={{ background:A.white, borderRadius:14, padding:28, width:520, maxWidth:"92vw", boxShadow:"0 20px 60px rgba(0,0,0,0.15)" }} onClick={e=>e.stopPropagation()}>
+
+        {/* Header */}
+        <div style={{ marginBottom:16, paddingBottom:14, borderBottom:`1px solid ${A.gray200}` }}>
           <div style={{ fontSize:10, color:A.gray400, fontFamily:FONT, marginBottom:5, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:700 }}>{okr.dept} · {okr.owner}</div>
-          <div style={{ fontSize:14, fontWeight:700, color:A.black, lineHeight:1.4, fontFamily:FONT }}>{okr.kr}</div>
+          <div style={{ fontSize:13, fontWeight:700, color:A.black, lineHeight:1.4, fontFamily:FONT }}>{okr.kr}</div>
         </div>
-        {lbl("Current value")}
-        <input value={form.current} onChange={e=>setForm(f=>({...f,current:e.target.value}))} style={inp()}/>
-        {lbl("Progress %")}
-        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:2 }}>
-          <input type="range" min={0} max={100} value={form.pct} onChange={e=>setForm(f=>({...f,pct:+e.target.value}))} style={{ flex:1, accentColor:A.blue }}/>
-          <span style={{ fontSize:15, fontWeight:800, color:A.blue, fontFamily:FONT, minWidth:36 }}>{form.pct}%</span>
+
+        {/* Tab switcher */}
+        <div style={{ display:"flex", background:A.gray100, borderRadius:8, padding:3, marginBottom:18, width:"fit-content", gap:2 }}>
+          {tabBtn("progress", "📊 Update progress")}
+          {tabBtn("definition", "✏️ Edit definition")}
         </div>
-        {lbl("Status")}
-        <select value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))} style={inp()}>
-          {STATUSES.map(s=><option key={s}>{s}</option>)}
-        </select>
-        {lbl("Week-on-week")}
-        <input value={form.wow} onChange={e=>setForm(f=>({...f,wow:e.target.value}))} placeholder="+5% or -2%" style={inp()}/>
-        {lbl("Weekly update")}
-        <textarea value={form.update} onChange={e=>setForm(f=>({...f,update:e.target.value}))} rows={3} style={inp({ resize:"vertical" })}/>
+
+        {/* PROGRESS TAB */}
+        {tab === "progress" && (
+          <div>
+            {lbl("Current value")}
+            <input value={form.current} onChange={e=>setForm(f=>({...f,current:e.target.value}))} style={inp()}/>
+            {lbl("Progress %")}
+            <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:2 }}>
+              <input type="range" min={0} max={100} value={form.pct} onChange={e=>setForm(f=>({...f,pct:+e.target.value}))} style={{ flex:1, accentColor:A.blue }}/>
+              <span style={{ fontSize:15, fontWeight:800, color:A.blue, fontFamily:FONT, minWidth:36 }}>{form.pct}%</span>
+            </div>
+            {lbl("Status")}
+            <select value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))} style={inp()}>
+              {STATUSES.map(s=><option key={s}>{s}</option>)}
+            </select>
+            {lbl("Week-on-week")}
+            <input value={form.wow} onChange={e=>setForm(f=>({...f,wow:e.target.value}))} placeholder="+5% or -2%" style={inp()}/>
+            {lbl("Weekly update / notes")}
+            <textarea value={form.update} onChange={e=>setForm(f=>({...f,update:e.target.value}))} rows={3} style={inp({ resize:"vertical" })}/>
+          </div>
+        )}
+
+        {/* DEFINITION TAB */}
+        {tab === "definition" && (
+          <div>
+            {lbl("Key result title")}
+            <textarea value={form.kr} onChange={e=>setForm(f=>({...f,kr:e.target.value}))} rows={2} style={inp({ resize:"vertical" })}/>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+              <div>
+                {lbl("Owner")}
+                <input value={form.owner} onChange={e=>setForm(f=>({...f,owner:e.target.value}))} style={inp()}/>
+              </div>
+              <div>
+                {lbl("Department")}
+                <select value={form.dept} onChange={e=>setForm(f=>({...f,dept:e.target.value}))} style={inp()}>
+                  <option value="">None</option>
+                  {DEPARTMENTS.map(d=><option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              <div>
+                {lbl("Start value")}
+                <input value={form.start} onChange={e=>setForm(f=>({...f,start:e.target.value}))} style={inp()}/>
+              </div>
+              <div>
+                {lbl("Target value")}
+                <input value={form.target} onChange={e=>setForm(f=>({...f,target:e.target.value}))} style={inp()}/>
+              </div>
+            </div>
+            {lbl("Department objective")}
+            <input value={form.obj} onChange={e=>setForm(f=>({...f,obj:e.target.value}))} placeholder="Which objective does this KR belong to?" style={inp()}/>
+            {lbl("Company KR alignment")}
+            <select value={form.companyKR} onChange={e=>setForm(f=>({...f,companyKR:e.target.value}))} style={inp()}>
+              <option value="">None</option>
+              {allCompanyKRs.map(k=><option key={k} value={k}>{k.length>60?k.slice(0,57)+"...":k}</option>)}
+            </select>
+          </div>
+        )}
+
         <div style={{ display:"flex", gap:10, justifyContent:"flex-end", marginTop:20 }}>
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
           <Btn onClick={()=>onSave(form)}>Save changes</Btn>
@@ -1437,7 +1498,7 @@ export default function App() {
 
   if (!unlocked) return <PasswordGate onUnlock={()=>setUnlocked(true)} />;
 
-  function saveEdit(form) { setOkrs(prev=>prev.map(o=>o.id===editing.id?{...o,...form}:o)); setEditing(null); }
+  function saveEdit(form) { setOkrs(prev=>prev.map(o=>o.id===editing.id?{...o, current:form.current, pct:form.pct, status:form.status, update:form.update, wow:form.wow, kr:form.kr, owner:form.owner, start:form.start, target:form.target, dept:form.dept, obj:form.obj, companyKR:form.companyKR }:o)); setEditing(null); }
 
   function addCheckin(krId, ci) {
     setOkrs(prev=>prev.map(o=>o.id===krId?{...o, status:ci.status, update:ci.update}:o));
@@ -1494,7 +1555,7 @@ export default function App() {
         <Glossary currentView={view} />
       </main>
 
-      {editing&&<EditModal okr={editing} onSave={saveEdit} onClose={()=>setEditing(null)}/>}
+      {editing&&<EditModal okr={editing} onSave={saveEdit} onClose={()=>setEditing(null)} allCompanyKRs={[...new Set(okrs.map(o=>o.companyKR).filter(Boolean))]}/>}
 
       {/* API key prompt */}
       {showApiPrompt&&(
