@@ -706,6 +706,375 @@ Be concise, data-driven, action-oriented. Use bullets. Reference owners by name.
   );
 }
 
+// ─── Goals Manager ────────────────────────────────────────────────────────────
+const DEPT_COLORS = {
+  "Onboarding":"#5C8EF1","Customer Success":"#00838A","Care":"#E18B63",
+  "AI":"#DF8CBA","Data":"#F3C231","Finance":"#70E0A3",
+  "People":"#8EDDED","Revenue":"#00AD4A","Product & Eng":"#28628E",
+};
+
+function GoalsManager({ okrs, setOkrs }) {
+  const [tab, setTab] = useState("company"); // "company" | "department"
+  const [showNewObj, setShowNewObj] = useState(false);
+  const [showNewKR, setShowNewKR] = useState(null); // objective title it belongs to
+  const [showNewDeptObj, setShowNewDeptObj] = useState(false);
+  const [showNewDeptKR, setShowNewDeptKR] = useState(null); // { dept, obj }
+  const [expandedObj, setExpandedObj] = useState(null);
+  const [expandedDeptObj, setExpandedDeptObj] = useState(null);
+  const [selectedDept, setSelectedDept] = useState(DEPARTMENTS[0]);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+
+  // Derive company objectives from unique companyKR values
+  const companyObjectives = [...new Set(okrs.map(o => o.companyKR).filter(Boolean))];
+
+  // Derive department objectives from unique obj values per dept
+  const deptObjectives = [...new Set(
+    okrs.filter(o => o.dept === selectedDept).map(o => o.obj).filter(Boolean)
+  )];
+
+  const inp = (style={}) => ({ width:"100%", padding:"9px 11px", borderRadius:8, border:`1px solid ${A.gray300}`, fontSize:13, fontFamily:FONT, outline:"none", boxSizing:"border-box", color:A.black, background:A.white, ...style });
+  const lbl = t => <div style={{ fontSize:10, fontWeight:700, color:A.gray500, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:5, fontFamily:FONT }}>{t}</div>;
+
+  function addCompanyObjective(form) {
+    // No KRs yet, just used as a label — company objectives emerge from KR data
+    // We create a placeholder KR so the objective appears
+    const newKR = {
+      id: Date.now(),
+      dept: "", kr: `New KR for: ${form.title}`, obj: form.description || form.title,
+      companyKR: form.title, owner: form.owner || "", start: "0", target: "100%",
+      current: "0%", pct: 0, status: "Not Started", wow: "", update: "",
+    };
+    setOkrs(prev => [...prev, newKR]);
+    setShowNewObj(false);
+  }
+
+  function addCompanyKR(form, companyKR) {
+    const newKR = {
+      id: Date.now(),
+      dept: form.dept || "", kr: form.kr, obj: form.obj || "",
+      companyKR: companyKR, owner: form.owner, start: form.start || "0",
+      target: form.target || "100%", current: form.start || "0",
+      pct: 0, status: "Not Started", wow: "", update: "",
+    };
+    setOkrs(prev => [...prev, newKR]);
+    setShowNewKR(null);
+  }
+
+  function addDeptObjective(form) {
+    const newKR = {
+      id: Date.now(),
+      dept: selectedDept, kr: `New KR for: ${form.title}`, obj: form.title,
+      companyKR: form.companyKR || "", owner: form.owner || "", start: "0",
+      target: "100%", current: "0%", pct: 0, status: "Not Started", wow: "", update: "",
+    };
+    setOkrs(prev => [...prev, newKR]);
+    setShowNewDeptObj(false);
+  }
+
+  function addDeptKR(form, dept, obj) {
+    const newKR = {
+      id: Date.now(),
+      dept: dept, kr: form.kr, obj: obj,
+      companyKR: form.companyKR || "", owner: form.owner, start: form.start || "0",
+      target: form.target || "100%", current: form.start || "0",
+      pct: 0, status: "Not Started", wow: "", update: "",
+    };
+    setOkrs(prev => [...prev, newKR]);
+    setShowNewDeptKR(null);
+  }
+
+  function deleteKR(id) {
+    setOkrs(prev => prev.filter(o => o.id !== id));
+    setDeleteConfirm(null);
+  }
+
+  const tabBtn = (id, label) => (
+    <button onClick={() => setTab(id)} style={{ padding:"8px 20px", borderRadius:8, border:"none", cursor:"pointer", fontSize:13, fontWeight:700, fontFamily:FONT, background:tab===id?A.blue:A.white, color:tab===id?A.white:A.gray700, border: tab===id?"none":`1px solid ${A.gray300}`, transition:"all 0.15s" }}>{label}</button>
+  );
+
+  return (
+    <div>
+      {/* Tab switcher */}
+      <div style={{ display:"flex", gap:8, marginBottom:24, alignItems:"center" }}>
+        {tabBtn("company", "🏢 Company objectives & KRs")}
+        {tabBtn("department", "🏬 Department objectives & KRs")}
+        <div style={{ flex:1 }}/>
+        <div style={{ fontSize:12, color:A.gray400, fontFamily:FONT, background:A.white, padding:"6px 12px", borderRadius:8, border:`1px solid ${A.gray300}` }}>
+          Changes apply immediately across all views
+        </div>
+      </div>
+
+      {/* ── COMPANY TAB ── */}
+      {tab === "company" && (
+        <div>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+            <div>
+              <div style={{ fontSize:16, fontWeight:800, color:A.black, fontFamily:FONT }}>Company objectives</div>
+              <div style={{ fontSize:12, color:A.gray400, fontFamily:FONT, marginTop:2 }}>Top-level goals that all departments align to. Each objective contains Key Results.</div>
+            </div>
+            <Btn onClick={() => setShowNewObj(true)}>+ New objective</Btn>
+          </div>
+
+          {/* New objective form */}
+          {showNewObj && <NewObjectiveForm onSave={addCompanyObjective} onCancel={() => setShowNewObj(false)} lbl={lbl} inp={inp} type="company" companyKRs={companyObjectives} />}
+
+          {/* List of company objectives */}
+          {companyObjectives.length === 0 && !showNewObj && (
+            <Card style={{ textAlign:"center", padding:"40px 20px" }}>
+              <div style={{ fontSize:28, marginBottom:10 }}>🏢</div>
+              <div style={{ fontSize:13, fontWeight:700, color:A.black, fontFamily:FONT, marginBottom:6 }}>No company objectives yet</div>
+              <div style={{ fontSize:12, color:A.gray400, fontFamily:FONT }}>Click "+ New objective" to add your first company-level goal.</div>
+            </Card>
+          )}
+
+          {companyObjectives.map(obj => {
+            const krs = okrs.filter(o => o.companyKR === obj);
+            const avg = krs.length ? Math.round(krs.reduce((a,o)=>a+o.pct,0)/krs.length) : 0;
+            const status = krs.length ? (krs.some(o=>o.status==="Off Track")?"Off Track":krs.some(o=>o.status==="At Risk")?"At Risk":krs.every(o=>o.status==="Completed")?"Completed":"On Track") : "Not Started";
+            const isOpen = expandedObj === obj;
+            const depts = [...new Set(krs.map(o=>o.dept).filter(Boolean))];
+
+            return (
+              <div key={obj} style={{ marginBottom:10 }}>
+                <div style={{ background:A.white, border:`1px solid ${isOpen?A.blue:A.gray300}`, borderRadius:12, overflow:"hidden", transition:"border-color 0.15s" }}>
+                  {/* Objective header */}
+                  <div onClick={() => setExpandedObj(isOpen ? null : obj)} style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 18px", cursor:"pointer" }}>
+                    <span style={{ fontSize:10, color:isOpen?A.blue:A.gray400, display:"inline-block", transform:isOpen?"rotate(90deg)":"none", transition:"transform 0.2s" }}>▶</span>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:14, fontWeight:700, color:A.black, fontFamily:FONT, marginBottom:4 }}>{obj}</div>
+                      <div style={{ fontSize:11, color:A.gray400, fontFamily:FONT }}>{krs.length} key results · {depts.length} departments · avg {avg}%</div>
+                    </div>
+                    <ProgressBar pct={avg} status={status} height={5} />
+                    <div style={{ minWidth:90, textAlign:"right" }}>
+                      <Badge status={status} small />
+                    </div>
+                  </div>
+
+                  {/* Expanded KR list */}
+                  {isOpen && (
+                    <div style={{ borderTop:`1px solid ${A.gray200}`, padding:"12px 18px" }}>
+                      {krs.map(kr => (
+                        <div key={kr.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 12px", background:A.gray100, borderRadius:8, marginBottom:6 }}>
+                          <div style={{ flex:1 }}>
+                            <div style={{ fontSize:12, fontWeight:600, color:A.black, fontFamily:FONT, marginBottom:3 }}>{kr.kr}</div>
+                            <div style={{ fontSize:11, color:A.gray400, fontFamily:FONT, display:"flex", gap:12 }}>
+                              {kr.dept && <span style={{ background:A.blueLight, color:A.blue, padding:"1px 7px", borderRadius:10, fontWeight:600 }}>{kr.dept}</span>}
+                              <span>👤 {kr.owner||"—"}</span>
+                              <span>{kr.start} → {kr.target}</span>
+                            </div>
+                          </div>
+                          <Badge status={kr.status} small />
+                          <span style={{ fontSize:12, fontWeight:700, color:A.gray500, fontFamily:FONT, minWidth:32, textAlign:"right" }}>{kr.pct}%</span>
+                          <button onClick={() => setDeleteConfirm(kr.id)} style={{ background:"none", border:"none", cursor:"pointer", color:A.gray400, fontSize:14, padding:"2px 6px", borderRadius:4 }} title="Delete KR">✕</button>
+                        </div>
+                      ))}
+
+                      {showNewKR === obj
+                        ? <NewKRForm onSave={f => addCompanyKR(f, obj)} onCancel={() => setShowNewKR(null)} lbl={lbl} inp={inp} depts={DEPARTMENTS} companyKRs={companyObjectives} showDept showCompanyKR={false} />
+                        : <button onClick={() => setShowNewKR(obj)} style={{ width:"100%", padding:"9px", borderRadius:8, border:`2px dashed ${A.gray300}`, background:"none", cursor:"pointer", fontSize:12, color:A.gray400, fontFamily:FONT, fontWeight:600, marginTop:4 }}>+ Add key result to this objective</button>
+                      }
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── DEPARTMENT TAB ── */}
+      {tab === "department" && (
+        <div>
+          {/* Dept selector */}
+          <div style={{ display:"flex", gap:8, marginBottom:20, flexWrap:"wrap" }}>
+            {DEPARTMENTS.map(d => (
+              <button key={d} onClick={() => setSelectedDept(d)} style={{ padding:"7px 14px", borderRadius:8, border:`1px solid ${selectedDept===d?A.blue:A.gray300}`, background:selectedDept===d?A.blueLight:A.white, color:selectedDept===d?A.blue:A.gray700, fontSize:12, fontWeight:700, fontFamily:FONT, cursor:"pointer" }}>
+                {d}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+            <div>
+              <div style={{ fontSize:16, fontWeight:800, color:A.black, fontFamily:FONT }}>{selectedDept}</div>
+              <div style={{ fontSize:12, color:A.gray400, fontFamily:FONT, marginTop:2 }}>Department-level objectives and key results for this team.</div>
+            </div>
+            <Btn onClick={() => setShowNewDeptObj(true)}>+ New objective</Btn>
+          </div>
+
+          {/* New dept objective form */}
+          {showNewDeptObj && <NewObjectiveForm onSave={addDeptObjective} onCancel={() => setShowNewDeptObj(false)} lbl={lbl} inp={inp} type="dept" companyKRs={companyObjectives} />}
+
+          {/* Dept objectives */}
+          {deptObjectives.length === 0 && !showNewDeptObj && (
+            <Card style={{ textAlign:"center", padding:"40px 20px" }}>
+              <div style={{ fontSize:28, marginBottom:10 }}>🏬</div>
+              <div style={{ fontSize:13, fontWeight:700, color:A.black, fontFamily:FONT, marginBottom:6 }}>No objectives for {selectedDept} yet</div>
+              <div style={{ fontSize:12, color:A.gray400, fontFamily:FONT }}>Click "+ New objective" to add the first department-level goal.</div>
+            </Card>
+          )}
+
+          {deptObjectives.map(obj => {
+            const krs = okrs.filter(o => o.dept === selectedDept && o.obj === obj);
+            const avg = krs.length ? Math.round(krs.reduce((a,o)=>a+o.pct,0)/krs.length) : 0;
+            const status = krs.length ? (krs.some(o=>o.status==="Off Track")?"Off Track":krs.some(o=>o.status==="At Risk")?"At Risk":krs.every(o=>o.status==="Completed")?"Completed":"On Track") : "Not Started";
+            const isOpen = expandedDeptObj === obj;
+            const ckrs = [...new Set(krs.map(o=>o.companyKR).filter(Boolean))];
+
+            return (
+              <div key={obj} style={{ marginBottom:10 }}>
+                <div style={{ background:A.white, border:`1px solid ${isOpen?A.blue:A.gray300}`, borderRadius:12, overflow:"hidden" }}>
+                  <div onClick={() => setExpandedDeptObj(isOpen ? null : obj)} style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 18px", cursor:"pointer" }}>
+                    <span style={{ fontSize:10, color:isOpen?A.blue:A.gray400, display:"inline-block", transform:isOpen?"rotate(90deg)":"none", transition:"transform 0.2s" }}>▶</span>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:14, fontWeight:700, color:A.black, fontFamily:FONT, marginBottom:4 }}>{obj}</div>
+                      <div style={{ fontSize:11, color:A.gray400, fontFamily:FONT, display:"flex", gap:10, flexWrap:"wrap" }}>
+                        <span>{krs.length} key results · avg {avg}%</span>
+                        {ckrs.map(c => <span key={c} style={{ background:A.blueLight, color:A.blue, padding:"1px 7px", borderRadius:10, fontWeight:600 }}>↗ {c}</span>)}
+                      </div>
+                    </div>
+                    <div style={{ minWidth:140 }}><ProgressBar pct={avg} status={status} height={5} /></div>
+                    <Badge status={status} small />
+                  </div>
+
+                  {isOpen && (
+                    <div style={{ borderTop:`1px solid ${A.gray200}`, padding:"12px 18px" }}>
+                      {krs.map(kr => (
+                        <div key={kr.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 12px", background:A.gray100, borderRadius:8, marginBottom:6 }}>
+                          <div style={{ flex:1 }}>
+                            <div style={{ fontSize:12, fontWeight:600, color:A.black, fontFamily:FONT, marginBottom:3 }}>{kr.kr}</div>
+                            <div style={{ fontSize:11, color:A.gray400, fontFamily:FONT, display:"flex", gap:12 }}>
+                              <span>👤 {kr.owner||"—"}</span>
+                              <span>{kr.start} → {kr.target} · now {kr.current}</span>
+                              {kr.companyKR && <span style={{ color:A.blue, fontWeight:600 }}>↗ {kr.companyKR}</span>}
+                            </div>
+                          </div>
+                          <Badge status={kr.status} small />
+                          <span style={{ fontSize:12, fontWeight:700, color:A.gray500, fontFamily:FONT, minWidth:32, textAlign:"right" }}>{kr.pct}%</span>
+                          <button onClick={() => setDeleteConfirm(kr.id)} style={{ background:"none", border:"none", cursor:"pointer", color:A.gray400, fontSize:14, padding:"2px 6px", borderRadius:4 }}>✕</button>
+                        </div>
+                      ))}
+
+                      {showNewDeptKR && showNewDeptKR.dept === selectedDept && showNewDeptKR.obj === obj
+                        ? <NewKRForm onSave={f => addDeptKR(f, selectedDept, obj)} onCancel={() => setShowNewDeptKR(null)} lbl={lbl} inp={inp} depts={DEPARTMENTS} companyKRs={companyObjectives} showDept={false} showCompanyKR />
+                        : <button onClick={() => setShowNewDeptKR({ dept:selectedDept, obj })} style={{ width:"100%", padding:"9px", borderRadius:8, border:`2px dashed ${A.gray300}`, background:"none", cursor:"pointer", fontSize:12, color:A.gray400, fontFamily:FONT, fontWeight:600, marginTop:4 }}>+ Add key result to this objective</button>
+                      }
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Delete confirmation */}
+      {deleteConfirm && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.35)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center" }} onClick={() => setDeleteConfirm(null)}>
+          <div style={{ background:A.white, borderRadius:14, padding:28, width:380, boxShadow:"0 20px 60px rgba(0,0,0,0.15)" }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize:16, fontWeight:800, color:A.black, fontFamily:FONT, marginBottom:8 }}>Delete this KR?</div>
+            <div style={{ fontSize:13, color:A.gray500, fontFamily:FONT, marginBottom:20, lineHeight:1.6 }}>
+              "{okrs.find(o=>o.id===deleteConfirm)?.kr}"<br/>This cannot be undone.
+            </div>
+            <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
+              <Btn variant="ghost" onClick={() => setDeleteConfirm(null)}>Cancel</Btn>
+              <Btn variant="danger" onClick={() => deleteKR(deleteConfirm)}>Delete KR</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NewObjectiveForm({ onSave, onCancel, lbl, inp, type, companyKRs }) {
+  const [form, setForm] = useState({ title:"", description:"", owner:"", companyKR:"" });
+  return (
+    <Card style={{ marginBottom:16, border:`2px solid ${A.blue}` }}>
+      <div style={{ fontSize:13, fontWeight:700, color:A.blue, fontFamily:FONT, marginBottom:14 }}>
+        {type === "company" ? "New company objective" : "New department objective"}
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+        <div style={{ gridColumn:"1/-1" }}>
+          {lbl("Objective title *")}
+          <input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder={type==="company" ? "e.g. Win upmarket in EU-4" : "e.g. Increase team efficiency through automation"} style={inp()} />
+        </div>
+        <div style={{ gridColumn:"1/-1" }}>
+          {lbl("Description")}
+          <input value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="What does success look like?" style={inp()} />
+        </div>
+        <div>
+          {lbl("Owner")}
+          <input value={form.owner} onChange={e=>setForm(f=>({...f,owner:e.target.value}))} placeholder="e.g. Frédéric Cadet" style={inp()} />
+        </div>
+        {type === "dept" && (
+          <div>
+            {lbl("Links to company KR")}
+            <select value={form.companyKR} onChange={e=>setForm(f=>({...f,companyKR:e.target.value}))} style={inp()}>
+              <option value="">None</option>
+              {companyKRs.map(k=><option key={k} value={k}>{k.length>50?k.slice(0,47)+"…":k}</option>)}
+            </select>
+          </div>
+        )}
+      </div>
+      <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:16 }}>
+        <Btn variant="ghost" onClick={onCancel}>Cancel</Btn>
+        <Btn onClick={() => { if(form.title.trim()) onSave(form); }} disabled={!form.title.trim()}>Create objective</Btn>
+      </div>
+    </Card>
+  );
+}
+
+function NewKRForm({ onSave, onCancel, lbl, inp, depts, companyKRs, showDept, showCompanyKR }) {
+  const [form, setForm] = useState({ kr:"", owner:"", start:"0", target:"100%", dept:"", obj:"", companyKR:"" });
+  return (
+    <Card style={{ marginTop:8, border:`2px solid ${A.blue}`, borderRadius:10 }}>
+      <div style={{ fontSize:12, fontWeight:700, color:A.blue, fontFamily:FONT, marginBottom:12 }}>New key result</div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+        <div style={{ gridColumn:"1/-1" }}>
+          {lbl("Key result *")}
+          <input value={form.kr} onChange={e=>setForm(f=>({...f,kr:e.target.value}))} placeholder="e.g. Increase win rate from 17.8% to 20.0%" style={inp()} />
+        </div>
+        <div>
+          {lbl("Owner *")}
+          <input value={form.owner} onChange={e=>setForm(f=>({...f,owner:e.target.value}))} placeholder="e.g. Lorena" style={inp()} />
+        </div>
+        {showDept && (
+          <div>
+            {lbl("Department")}
+            <select value={form.dept} onChange={e=>setForm(f=>({...f,dept:e.target.value}))} style={inp()}>
+              <option value="">Select department</option>
+              {depts.map(d=><option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
+        )}
+        <div>
+          {lbl("Start value")}
+          <input value={form.start} onChange={e=>setForm(f=>({...f,start:e.target.value}))} placeholder="e.g. 17.8% or 0" style={inp()} />
+        </div>
+        <div>
+          {lbl("Target value")}
+          <input value={form.target} onChange={e=>setForm(f=>({...f,target:e.target.value}))} placeholder="e.g. 20.0% or 100%" style={inp()} />
+        </div>
+        {showCompanyKR && (
+          <div style={{ gridColumn:"1/-1" }}>
+            {lbl("Links to company KR")}
+            <select value={form.companyKR} onChange={e=>setForm(f=>({...f,companyKR:e.target.value}))} style={inp()}>
+              <option value="">None</option>
+              {companyKRs.map(k=><option key={k} value={k}>{k.length>60?k.slice(0,57)+"…":k}</option>)}
+            </select>
+          </div>
+        )}
+      </div>
+      <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:12 }}>
+        <Btn variant="ghost" onClick={onCancel} small>Cancel</Btn>
+        <Btn onClick={() => { if(form.kr.trim()&&form.owner.trim()) onSave(form); }} disabled={!form.kr.trim()||!form.owner.trim()} small>Add KR</Btn>
+      </div>
+    </Card>
+  );
+}
+
+
 // ─── Glossary ─────────────────────────────────────────────────────────────────
 const GLOSSARY_DATA = {
   shared: {
@@ -842,9 +1211,10 @@ function Glossary({ currentView }) {
 // ─── Main App ─────────────────────────────────────────────────────────────────
 const VIEWS = [
   { id:"dashboard", label:"Dashboard", icon:"📊" },
+  { id:"goals",     label:"Goals",     icon:"🎯" },
   { id:"alignment", label:"Alignment", icon:"🔗" },
   { id:"checkins",  label:"Check-ins", icon:"💬" },
-  { id:"list",      label:"All KRs",   icon:"🎯" },
+  { id:"list",      label:"All KRs",   icon:"📋" },
 ];
 
 const PASSWORD = "amenitiz2025";
@@ -981,6 +1351,7 @@ export default function App() {
       {/* Main */}
       <main style={{ padding:mainPad, transition:"padding 0.3s", maxWidth:aiOpen?"none":1280, margin:aiOpen?0:"0 auto" }}>
         {view==="dashboard" && <Dashboard okrs={okrs}/>}
+        {view==="goals"     && <GoalsManager okrs={okrs} setOkrs={setOkrs}/>}
         {view==="alignment" && <AlignmentView okrs={okrs}/>}
         {view==="checkins"  && <CheckIns okrs={okrs} checkins={checkins} onAddCheckin={addCheckin}/>}
         {view==="list"      && <KRList okrs={okrs} onEdit={setEditing}/>}
